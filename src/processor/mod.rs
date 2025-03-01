@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message};
+use crate::{Error, Message, MessageBatch};
 
 pub mod batch;
 pub mod filter;
@@ -21,6 +21,34 @@ pub trait Processor: Send + Sync {
 
     /// 关闭处理器
     async fn close(&self) -> Result<(), Error>;
+}
+
+#[async_trait]
+pub trait ProcessorBatch: Send + Sync {
+    /// 处理消息批次
+    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error>;
+
+    /// 关闭处理器
+    async fn close(&self) -> Result<(), Error>;
+}
+
+#[async_trait]
+impl<T> ProcessorBatch for T
+where
+    T: Processor,
+{
+    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
+        let mut vec: Vec<MessageBatch> = vec![];
+        for x in msg.0 {
+            vec.push(self.process(x).await?.into())
+        }
+        Ok(vec.into())
+    }
+
+
+    async fn close(&self) -> Result<(), Error> {
+        self.close().await
+    }
 }
 
 /// 处理器配置

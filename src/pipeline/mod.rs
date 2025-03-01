@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, processor::Processor};
+use crate::{Error, Message, processor::Processor, MessageBatch};
 
 /// 管道结构体，包含一系列处理器
 pub struct Pipeline {

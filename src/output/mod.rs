@@ -27,6 +27,39 @@ pub trait Output: Send + Sync {
     async fn close(&self) -> Result<(), Error>;
 }
 
+#[async_trait]
+pub trait OutputBatch: Send + Sync {
+    /// 连接到输出目标
+    async fn connect(&self) -> Result<(), Error>;
+
+    /// 向输出目标写入消息
+    async fn write(&self, msg: &[Message]) -> Result<(), Error>;
+
+    /// 关闭输出目标连接
+    async fn close(&self) -> Result<(), Error>;
+}
+
+#[async_trait]
+impl<T> OutputBatch for T
+where
+    T: Output,
+{
+    async fn connect(&self) -> Result<(), Error> {
+        self.connect().await
+    }
+
+    async fn write(&self, msg: &[Message]) -> Result<(), Error> {
+        for x in msg {
+            self.write(x).await?
+        }
+        Ok(())
+    }
+
+    async fn close(&self) -> Result<(), Error> {
+        self.close().await
+    }
+}
+
 /// 输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]

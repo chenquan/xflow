@@ -4,6 +4,7 @@
 //! 旨在提供一个高性能、可靠且易于扩展的数据流处理系统。
 
 use std::fmt;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -151,5 +152,35 @@ impl fmt::Display for Message {
             Ok(s) => write!(f, "{}", s),
             Err(_) => write!(f, "<二进制数据: {} 字节>", self.content.len()),
         }
+    }
+}
+
+pub struct MessageBatch(Vec<Message>);
+
+impl MessageBatch {
+    pub fn new(messages: Vec<Message>) -> Self {
+        Self(messages)
+    }
+    pub fn new_single(message: Message) -> Self {
+        Self(vec![message])
+    }
+}
+impl From<Vec<Message>> for MessageBatch {
+    fn from(messages: Vec<Message>) -> Self {
+        Self(messages)
+    }
+}
+
+impl From<MessageBatch> for Vec<Message> {
+    fn from(batch: MessageBatch) -> Self {
+        batch.0
+    }
+}
+
+impl Deref for MessageBatch {
+    type Target = Vec<Message>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
