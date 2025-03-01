@@ -63,7 +63,7 @@ pub enum ProcessorConfig {
 
 impl ProcessorConfig {
     /// 根据配置构建处理器组件
-    pub fn build(&self) -> Result<Arc<dyn Processor>, Error> {
+    pub fn build(&self) -> Result<Arc<dyn ProcessorBatch>, Error> {
         match self {
             ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Filter(config) => Ok(Arc::new(filter::FilterProcessor::new(config)?)),

@@ -6,13 +6,15 @@ use std::sync::Arc;
 use flume::RecvError;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
-use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, Message};
+use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, Message, MessageBatch};
+use crate::input::InputBatch;
+use crate::output::OutputBatch;
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
 pub struct Stream {
-    input: Arc<dyn Input>,
+    input: Arc<dyn InputBatch>,
     pipeline: Arc<Pipeline>,
-    output: Arc<dyn Output>,
+    output: Arc<dyn OutputBatch>,
     buffer: Option<Arc<dyn Buffer>>,
     thread_num: i32,
 }
@@ -20,9 +22,9 @@ pub struct Stream {
 impl Stream {
     /// 创建一个新的流
     pub fn new(
-        input: Arc<dyn Input>,
+        input: Arc<dyn InputBatch>,
         pipeline: Pipeline,
-        output: Arc<dyn Output>,
+        output: Arc<dyn OutputBatch>,
         buffer: Option<Arc<dyn Buffer>>,
         thread_num: i32,
     ) -> Self {
@@ -42,8 +44,8 @@ impl Stream {
         self.output.connect().await?;;
 
 
-        let (input_sender, input_receiver) = flume::bounded::<Message>(1000);
-        let (output_sender, output_receiver) = flume::bounded::<Message>(1000);
+        let (input_sender, input_receiver) = flume::bounded::<MessageBatch>(1000);
+        let (output_sender, output_receiver) = flume::bounded::<MessageBatch>(1000);
         let input = Arc::clone(&self.input);
 
         tokio::spawn(async move {
@@ -85,7 +87,7 @@ impl Stream {
                     match input_receiver.recv_async().await {
                         Ok(msg) => {
                             // 通过管道处理消息
-                            let processed = pipeline.process(msg.clone()).await;
+                            let processed = pipeline.process(msg).await;
                             // 处理结果消息
                             match processed {
                                 Ok(msgs) => {

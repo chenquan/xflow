@@ -7,20 +7,21 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Message, processor::Processor, MessageBatch};
+use crate::processor::ProcessorBatch;
 
 /// 管道结构体，包含一系列处理器
 pub struct Pipeline {
-    processors: Vec<Arc<dyn Processor>>,
+    processors: Vec<Arc<dyn ProcessorBatch>>,
 }
 
 impl Pipeline {
     /// 创建一个新的管道
-    pub fn new(processors: Vec<Arc<dyn Processor>>) -> Self {
+    pub fn new(processors: Vec<Arc<dyn ProcessorBatch>>) -> Self {
         Self { processors }
     }
 
     /// 处理消息
-    pub async fn process(&self, msg: Message) -> Result<Vec<Message>, Error> {
+    pub async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
         let mut msgs = vec![msg];
         for processor in &self.processors {
             let mut new_msgs = Vec::new();

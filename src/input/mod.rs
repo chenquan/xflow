@@ -37,7 +37,7 @@ pub trait InputBatch: Send + Sync {
     async fn read(&self) -> Result<MessageBatch, Error>;
 
     /// 确认消息已被处理
-    async fn acknowledge(&self, msg: &Message) -> Result<(), Error>;
+    async fn acknowledge(&self, msg: &[Message]) -> Result<(), Error>;
 
     /// 关闭输入源连接
     async fn close(&self) -> Result<(), Error>;
@@ -57,8 +57,11 @@ where
         Ok(MessageBatch::new_single(result))
     }
 
-    async fn acknowledge(&self, msg: &Message) -> Result<(), Error> {
-        self.acknowledge(msg).await
+    async fn acknowledge(&self, msg: &[Message]) -> Result<(), Error> {
+        for x in msg {
+            self.acknowledge(x).await?
+        }
+        Ok(())
     }
 
     async fn close(&self) -> Result<(), Error> {
@@ -78,7 +81,7 @@ pub enum InputConfig {
 
 impl InputConfig {
     /// 根据配置构建输入组件
-    pub fn build(&self) -> Result<Arc<dyn Input>, Error> {
+    pub fn build(&self) -> Result<Arc<dyn InputBatch>, Error> {
         match self {
             InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
             InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),

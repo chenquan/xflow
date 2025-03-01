@@ -73,7 +73,7 @@ pub enum OutputConfig {
 
 impl OutputConfig {
     /// 根据配置构建输出组件
-    pub fn build(&self) -> Result<Arc<dyn Output>, Error> {
+    pub fn build(&self) -> Result<Arc<dyn OutputBatch>, Error> {
         match self {
             OutputConfig::File(config) => Ok(Arc::new(file::FileOutput::new(config)?)),
             // OutputConfig::Http(config) => Ok(Arc::new(http::HttpOutput::new(config)?)),
