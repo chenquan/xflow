@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::string::FromUtf8Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use flume::{Receiver, RecvError, SendError, Sender};
@@ -124,8 +125,8 @@ impl Input for MqttInput {
                     Ok(event) => {
                         if let Event::Incoming(Packet::Publish(publish)) = event {
                             let payload = publish.payload.to_vec();
+                            info!("Received message: {}", &String::from_utf8_lossy(&payload));
                             let msg = Message::new(payload);
-
                             // 将消息添加到队列
                             match sender_arc.send_async(msg).await {
                                 Ok(_) => {}
@@ -142,6 +143,7 @@ impl Input for MqttInput {
                     }
                 }
             }
+            drop(sender_arc);
         });
 
         // 保存事件循环处理线程句柄
@@ -186,6 +188,7 @@ impl Input for MqttInput {
             // 尝试断开连接，但不等待结果
             let _ = client.disconnect().await;
         }
+
 
         self.connected.store(false, Ordering::SeqCst);
         Ok(())
