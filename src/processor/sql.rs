@@ -57,8 +57,7 @@ pub struct SqlProcessorConfig {
     pub window: Option<WindowConfig>,
     /// 状态保留时间（毫秒，0表示无限，仅用于流式SQL）
     pub state_ttl_ms: Option<u64>,
-    /// 目标字段（可选，用于将结果存储到特定字段）
-    pub target: Option<String>,
+
 }
 
 /// SQL处理器状态
@@ -205,7 +204,6 @@ impl SqlProcessor {
     }
 
 
-
     /// 执行SQL查询
     async fn execute_query(&self, batch: RecordBatch) -> Result<RecordBatch, Error> {
         // 创建会话上下文
@@ -224,19 +222,19 @@ impl SqlProcessor {
             .map_err(|e| Error::Processing(format!("收集查询结果错误: {}", e)))?;
 
         if result_batches.is_empty() {
-            return Err(Error::Processing("查询结果为空".to_string()));
+            return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
         }
 
         Ok(result_batches[0].clone())
     }
 
     /// 将查询结果格式化为输出
-    fn format_output(&self, batch: &RecordBatch) -> Result<String, Error> {
+    fn format_output(&self, batch: &RecordBatch) -> Result<Vec<Message>, Error> {
         self.format_json_output(batch)
     }
 
     /// 格式化为JSON输出
-    fn format_json_output(&self, batch: &RecordBatch) -> Result<String, Error> {
+    fn format_json_output(&self, batch: &RecordBatch) -> Result<Vec<Message>, Error> {
         let schema = batch.schema();
         let mut result = Vec::new();
 
@@ -318,18 +316,15 @@ impl SqlProcessor {
             result.push(serde_json::Value::Object(row_obj));
         }
 
-        // 如果只有一行，返回对象而不是数组
-        let final_result = if result.len() == 1 {
-            result.pop().unwrap()
-        } else {
-            serde_json::Value::Array(result)
-        };
+        let mut result_msg = vec![];
 
-        serde_json::to_string(&final_result)
-            .map_err(|e| Error::Processing(format!("JSON序列化错误: {}", e)))
+        for x in result {
+            let msg_str = serde_json::to_string(&x)
+                .map_err(|e| Error::Processing(format!("JSON序列化错误: {}", e)))?;
+            result_msg.push(Message::new(msg_str.into_bytes()))
+        }
+        Ok(result_msg)
     }
-
-
 
 
     /// 提取时间戳
@@ -735,18 +730,10 @@ impl Processor for SqlProcessor {
             self.execute_query(input_batch).await?
         };
 
-        // 格式化结果
-        let result_str = self.format_output(&result_batch)?;
+        // 结果
+        let result_msg = self.format_output(&result_batch)?;
 
-        // 如果指定了目标字段，则将结果添加到元数据
-        if let Some(target) = &self.config.target {
-            msg.metadata_mut().set(target, &result_str);
-        } else {
-            // 否则，将结果设置为消息内容
-            msg.set_content(result_str.into_bytes());
-        }
-
-        Ok(vec![msg])
+        Ok(result_msg)
     }
 
     async fn close(&self) -> Result<(), Error> {
