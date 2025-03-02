@@ -123,15 +123,8 @@ impl SqlProcessor {
         let ctx = SessionContext::new();
 
         // 注册表
-        let option = &self.config.table_name;
-        let table_name = match option {
-            None => {
-                DEFAULT_TABLE_NAME
-            }
-            Some(v) => {
-                &v
-            }
-        };
+        let table_name = self.config.table_name.as_deref()
+            .unwrap_or(DEFAULT_TABLE_NAME);
 
         ctx.register_batch(table_name, batch)
             .map_err(|e| Error::Processing(format!("注册表失败: {}", e)))?;
