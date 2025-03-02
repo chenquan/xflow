@@ -13,20 +13,7 @@ use datafusion::common::SchemaExt;
 use serde_json::Value;
 use crate::{Error, Message, MessageBatch, processor::{ProcessorBatch}};
 
-/// 窗口类型
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WindowType {
-    /// 滚动窗口（固定大小，不重叠）
-    Tumbling,
-    /// 滑动窗口（固定大小，可重叠）
-    Sliding,
-    /// 会话窗口（由不活动间隔定义）
-    Session,
-}
-
-/// 窗口配置
-
+const DEFAULT_TABLE_NAME: &str = "flow";
 /// SQL处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqlProcessorConfig {
@@ -34,7 +21,7 @@ pub struct SqlProcessorConfig {
     pub query: String,
 
     /// 表名（用于SQL查询中引用）
-    pub table_name: String,
+    pub table_name: Option<String>,
 
 }
 
@@ -136,7 +123,10 @@ impl SqlProcessor {
         let ctx = SessionContext::new();
 
         // 注册表
-        ctx.register_batch(&self.config.table_name, batch)
+        let table_name = self.config.table_name.as_deref()
+            .unwrap_or(DEFAULT_TABLE_NAME);
+
+        ctx.register_batch(table_name, batch)
             .map_err(|e| Error::Processing(format!("注册表失败: {}", e)))?;
 
         // 执行SQL查询

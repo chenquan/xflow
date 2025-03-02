@@ -1,3 +1,7 @@
 /target
 
 .idea
+
+.DS_Store
+
+examples/output.txt
