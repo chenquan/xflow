@@ -2,15 +2,15 @@
 //!
 //! 从MQTT代理接收数据
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::collections::VecDeque;
-use tokio::sync::Mutex;
 use async_trait::async_trait;
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use serde::{Deserialize, Serialize};
-use rumqttc::{AsyncClient, MqttOptions, QoS, Event, Packet};
+use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-use crate::{Error, Message, input::Input};
+use crate::{input::Input, Error, Message};
 
 /// MQTT输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,11 +65,8 @@ impl Input for MqttInput {
         }
 
         // 创建MQTT选项
-        let mut mqtt_options = MqttOptions::new(
-            &self.config.client_id,
-            &self.config.host,
-            self.config.port,
-        );
+        let mut mqtt_options =
+            MqttOptions::new(&self.config.client_id, &self.config.host, self.config.port);
 
         // 设置认证信息
         if let (Some(username), Some(password)) = (&self.config.username, &self.config.password) {
@@ -88,7 +85,7 @@ impl Input for MqttInput {
 
         // 创建MQTT客户端
         let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
-        
+
         // 订阅主题
         let qos_level = match self.config.qos {
             Some(0) => QoS::AtMostOnce,
@@ -98,7 +95,9 @@ impl Input for MqttInput {
         };
 
         for topic in &self.config.topics {
-            client.subscribe(topic, qos_level).await
+            client
+                .subscribe(topic, qos_level)
+                .await
                 .map_err(|e| Error::Connection(format!("无法订阅MQTT主题 {}: {}", topic, e)))?;
         }
 
@@ -116,22 +115,13 @@ impl Input for MqttInput {
                     Ok(event) => {
                         if let Event::Incoming(Packet::Publish(publish)) = event {
                             let payload = publish.payload.to_vec();
-                            let mut msg = Message::new(payload);
-                            
-                            // // 添加元数据
-                            // let metadata = msg.metadata_mut();
-                            // metadata.set("mqtt_topic", &publish.topic);
-                            
-                            // metadata.set("mqtt_qos", &publish.qos.to_string());
-                            // if let Some(pkid) = publish.pkid {
-                            //     metadata.set("mqtt_packet_id", &pkid.to_string());
-                            // }
-                            
+                            let msg = Message::new(payload);
+
                             // 将消息添加到队列
                             let mut queue_guard = queue.lock().await;
                             queue_guard.push_back(msg);
                         }
-                    },
+                    }
                     Err(e) => {
                         // 记录错误并尝试短暂等待后继续
                         eprintln!("MQTT事件循环错误: {}", e);
