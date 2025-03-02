@@ -6,6 +6,8 @@ description = "High-performance Rust flow processing engine"
 authors = ["chenquan <chenquan.dev@gmail.com>"]
 repository = "https://github.com/chenquan/rsflow"
 homepage = "https://github.com/chenquan/rsflow"
+license = "Apache-2.0"
+
 [dependencies]
 # 异步运行时
 tokio = { version = "1.28", features = ["full"] }
