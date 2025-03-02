@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
-
+use tracing::info;
 use crate::{Error, Message, output::Output};
 
 /// MQTT输出配置
@@ -120,6 +120,7 @@ impl Output for MqttOutput {
 
         // 获取消息内容
         let payload = msg.content().to_vec();
+        info!("Send message: {}", &String::from_utf8_lossy(&payload));
 
         // 确定QoS级别
         let qos_level = match self.config.qos {
