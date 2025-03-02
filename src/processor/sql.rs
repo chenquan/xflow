@@ -65,7 +65,7 @@ impl SqlProcessor {
 
         // 处理不同的JSON结构
         match json_value {
-            serde_json::Value::Object(obj) => {
+            Value::Object(obj) => {
                 // 单个对象转换为单行表
                 let mut fields = Vec::new();
                 let mut columns: Vec<ArrayRef> = Vec::new();
@@ -122,61 +122,8 @@ impl SqlProcessor {
                 RecordBatch::try_new(schema, columns)
                     .map_err(|e| Error::Processing(format!("创建记录批次失败: {}", e)))
             }
-            serde_json::Value::Array(arr) => {
-                if arr.is_empty() {
-                    // 返回一个空的记录批次而不是错误
-                    let schema = Arc::new(Schema::new(vec![] as Vec<Field>));
-                    return RecordBatch::try_new(schema, vec![]).map_err(|e| Error::Processing(format!("创建记录批次失败: {}", e)));
-                }
-
-                // 数组的第一个元素用于确定schema
-                if let Some(serde_json::Value::Object(first_obj)) = arr.first() {
-                    let mut fields = Vec::new();
-                    let mut columns: Vec<Vec<String>> = Vec::new();
-
-                    // 从第一个对象提取字段
-                    for key in first_obj.keys() {
-                        fields.push(Field::new(key, DataType::Utf8, false));
-                        columns.push(Vec::with_capacity(arr.len()));
-                    }
-
-                    // 填充所有行的数据
-                    for item in &arr {
-                        if let serde_json::Value::Object(obj) = item {
-                            let mut col_idx = 0;
-                            for key in first_obj.keys() {
-                                let value = obj.get(key).unwrap_or(&serde_json::Value::Null);
-                                let str_value = match value {
-                                    serde_json::Value::Null => "null".to_string(),
-                                    _ => value.to_string(),
-                                };
-                                columns[col_idx].push(str_value);
-                                col_idx += 1;
-                            }
-                        } else {
-                            // 跳过非对象元素而不是返回错误
-                            continue;
-                        }
-                    }
-
-                    // 如果所有元素都被跳过，返回空的记录批次
-                    if columns.first().map_or(true, |col| col.is_empty()) {
-                        let schema = Arc::new(Schema::new(vec![] as Vec<Field>));
-                        return RecordBatch::try_new(schema, vec![]).map_err(|e| Error::Processing(format!("创建记录批次失败: {}", e)));
-                    }
-
-                    // 创建Arrow列
-                    let arrow_columns: Vec<ArrayRef> = columns.iter()
-                        .map(|col| Arc::new(StringArray::from(col.clone())) as ArrayRef)
-                        .collect();
-
-                    // 创建schema和记录批次
-                    let schema = Arc::new(Schema::new(fields));
-                    RecordBatch::try_new(schema, arrow_columns)
-                        .map_err(|e| Error::Processing(format!("创建记录批次失败: {}", e)))
-                } else {
-                    Err(Error::Processing("JSON数组的第一个元素不是对象".to_string()))
-                }
+            Value::Array(_) => {
+                Err(Error::Processing("不支持JSON数组".to_string()))
             }
             _ => Err(Error::Processing("输入必须是JSON对象或数组".to_string())),
         }
