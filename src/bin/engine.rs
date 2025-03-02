@@ -9,8 +9,8 @@ use clap::{Command, Arg};
 use tracing::{info, error, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use xflow::config::EngineConfig;
-use xflow::Error;
+use rsflow::config::EngineConfig;
+use rsflow::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
