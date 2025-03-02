@@ -3,10 +3,8 @@
 //! 使用DataFusion执行SQL查询处理数据，支持静态SQL和流式SQL
 
 use std::sync::Arc;
-use std::collections::HashMap;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use datafusion::prelude::*;
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Float64Array, NullArray, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -29,7 +27,6 @@ pub enum WindowType {
 
 /// 窗口配置
 
-
 /// SQL处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqlProcessorConfig {
@@ -39,10 +36,7 @@ pub struct SqlProcessorConfig {
     /// 表名（用于SQL查询中引用）
     pub table_name: String,
 
-
-
 }
-
 
 
 /// SQL处理器组件
@@ -53,8 +47,6 @@ pub struct SqlProcessor {
 impl SqlProcessor {
     /// 创建一个新的SQL处理器组件
     pub fn new(config: &SqlProcessorConfig) -> Result<Self, Error> {
-
-
         Ok(Self {
             config: config.clone(),
         })
@@ -312,9 +304,6 @@ impl SqlProcessor {
         }
         Ok(result_msg)
     }
-
-
-
 
 
     /// 合并多个记录批次
