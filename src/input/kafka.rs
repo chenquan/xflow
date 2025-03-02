@@ -82,7 +82,7 @@ impl Input for KafkaInput {
             .map_err(|e| Error::Connection(format!("无法创建Kafka消费者: {}", e)))?;
 
         // 订阅主题
-        consumer.subscribe(&self.config.topics)
+        consumer.subscribe(self.config.topics.as_ref())
             .map_err(|e| Error::Connection(format!("无法订阅Kafka主题: {}", e)))?;
 
         // 使用线程本地存储来保存消费者实例
@@ -145,7 +145,7 @@ impl Input for KafkaInput {
                 }
 
                 Ok(msg)
-            },
+            }
             Ok(Err(e)) => Err(Error::Processing(format!("Kafka消息接收错误: {}", e))),
             Err(_) => Err(Error::Processing("接收Kafka消息超时".to_string())),
         }
