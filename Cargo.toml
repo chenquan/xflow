@@ -1,5 +1,5 @@
 [package]
-name = "rtflow"
+name = "xflow"
 version = "0.1.0"
 edition = "2021"
 description = "高性能Rust流处理引擎"
