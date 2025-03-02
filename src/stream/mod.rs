@@ -65,9 +65,9 @@ impl Stream {
                                 return;
                             }
                             _ => {
-                                error!("1  {}", e);
+                                error!("{}", e);
                                 // 发生错误时，关闭发送端以通知所有工作线程
-                                return;
+                                break;
                             }
                         };
                     }
@@ -99,7 +99,7 @@ impl Stream {
                                     }
                                 }
                                 Err(e) => {
-                                    error!("2   {}", e)
+                                    error!("{}", e)
                                 }
                             }
                         }

@@ -75,7 +75,7 @@ where
 pub enum InputConfig {
     File(file::FileInputConfig),
     Http(http::HttpInputConfig),
-    // Kafka(kafka::KafkaInputConfig),
+    Kafka(kafka::KafkaInputConfig),
     Memory(memory::MemoryInputConfig),
 }
 
@@ -85,7 +85,7 @@ impl InputConfig {
         match self {
             InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
             InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
-            // InputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaInput::new(config)?)),
+            InputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaInput::new(config)?)),
             InputConfig::Memory(config) => Ok(Arc::new(memory::MemoryInput::new(config)?)),
         }
     }

@@ -45,3 +45,9 @@ reqwest = { version = "0.11", features = ["json"] }
 clap = { version = "4.3", features = ["derive"] }
 colored = "2.0"
 flume = "=0.10"
+
+# Kafka
+aws-msk-iam-sasl-signer = "1.0.0"
+rdkafka = { version = "0.37", features = ["cmake-build", "tracing", "sasl", "ssl-vendored", "zstd"] }
+rdkafka-sys = "4.8.0"
+sasl2-sys = { version = "0.1.22", features = ["vendored"] }
