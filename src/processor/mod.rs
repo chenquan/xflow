@@ -13,7 +13,6 @@ pub mod filter;
 pub mod grok;
 pub mod json;
 pub mod sql;
-pub mod stream_sql;
 
 /// 处理器组件的特征接口
 #[async_trait]
@@ -62,7 +61,7 @@ pub enum ProcessorConfig {
     Grok(grok::GrokProcessorConfig),
     Json(json::JsonProcessorConfig),
     Sql(sql::SqlProcessorConfig),
-    StreamSql(stream_sql::StreamSqlProcessorConfig),
+
 }
 
 impl ProcessorConfig {
@@ -74,7 +73,6 @@ impl ProcessorConfig {
             ProcessorConfig::Grok(config) => Ok(Arc::new(grok::GrokProcessor::new(config)?)),
             ProcessorConfig::Json(config) => Ok(Arc::new(json::JsonProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
-            ProcessorConfig::StreamSql(config) => Ok(Arc::new(stream_sql::StreamSqlProcessor::new(config)?)),
         }
     }
 }

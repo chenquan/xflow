@@ -1,37 +1,41 @@
 # 流式SQL处理示例配置
 
-input:
-  type: file
-  file:
-    path: "./examples/stream_data.json"
-    codec: lines
+streams:
+  - input:
+      type: "memory"
+      # 内存输入配置，提供一些测试消息
+      messages:
+        - '{ "timestamp": 1625000000000, "value": 10, "sensor": "temp_1" }'
+        - '{ "timestamp": 1625000001000, "value": 15, "sensor": "temp_1" }'
+        - '{ "timestamp": 1625000002000, "value": 12, "sensor": "temp_1" }'
 
-pipeline:
-  thread_num: 4
-  processors:
-    - type: streamsql
-      streamsql:
-        # SQL查询语句，支持标准SQL语法
-        query: "SELECT timestamp, AVG(value) as avg_value, COUNT(*) as count FROM events GROUP BY TUMBLE(timestamp, INTERVAL '10' SECOND)"
-        # 输入格式（支持json和csv）
-        input_format: "json"
-        # 表名（用于SQL查询中引用）
-        table_name: "events"
-        # 输出格式（支持json和csv）
-        output_format: "json"
-        # 窗口配置
-        window:
-          # 窗口类型：tumbling（滚动窗口）、sliding（滑动窗口）或session（会话窗口）
-          window_type: "tumbling"
-          # 窗口大小（毫秒）
-          size_ms: 10000
-          # 时间戳字段名
-          timestamp_field: "timestamp"
-          # 水印延迟（毫秒）
-          watermark_delay_ms: 1000
-        # 状态保留时间（毫秒，0表示无限）
-        state_ttl_ms: 60000
 
-output:
-  type: stdout
-  stdout: {}
+    pipeline:
+      thread_num: 4
+      processors:
+        - type: "sql"
+          # SQL查询语句，支持标准SQL语法
+          query: "SELECT timestamp,value FROM events  WHERE value > 10"
+          # 输入格式（支持json和csv）
+          input_format: "json"
+          # 表名（用于SQL查询中引用）
+          table_name: "events"
+          # 输出格式（支持json和csv）
+          output_format: "json"
+          # 窗口配置
+#          window:
+#            # 窗口类型：tumbling（滚动窗口）、sliding（滑动窗口）或session（会话窗口）
+#            window_type: "tumbling"
+#            # 窗口大小（毫秒）
+#            size_ms: 10000
+#            # 时间戳字段名
+#            timestamp_field: "timestamp"
+#            # 水印延迟（毫秒）
+#            watermark_delay_ms: 1000
+#          # 状态保留时间（毫秒，0表示无限）
+#          state_ttl_ms: 60000
+
+
+    output:
+      type: "stdout"
+      append_newline: true
