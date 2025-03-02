@@ -33,8 +33,12 @@ streams:
         
     # 处理管道配置
     pipeline:
-      thread_num: 4
-      processors: []
+      thread_num: 1
+      processors:
+        - type: "filter"
+          condition_type: "content"
+          condition: "null"
+          invert: false
 
  
 

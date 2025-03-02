@@ -38,11 +38,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 加载配置
     let config = match EngineConfig::from_file(config_path) {
         Ok(config) => {
-            info!("成功加载配置文件: {}", config_path);
+            println!("成功加载配置文件: {}", config_path);
             config
         }
         Err(e) => {
-            error!("加载配置文件失败: {}", e);
+            println!("加载配置文件失败: {}", e);
             process::exit(1);
         }
     };

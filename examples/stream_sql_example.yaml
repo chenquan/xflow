@@ -1,0 +1,25 @@
+# 流式SQL处理示例配置
+
+streams:
+  - input:
+      type: "memory"
+      # 内存输入配置，提供一些测试消息
+      messages:
+        - '{ "timestamp": 1625000000000, "value": 10, "sensor": "temp_1" }'
+        - '{ "timestamp": 1625000001000, "value": 15, "sensor": "temp_1" }'
+        - '{ "timestamp": 1625000002000, "value": 12, "sensor": "temp_1" }'
+
+
+    pipeline:
+      thread_num: 4
+      processors:
+        - type: "sql"
+          # SQL查询语句，支持标准SQL语法
+          query: "SELECT *  FROM events WHERE value > 10"
+          # 表名（用于SQL查询中引用）
+          table_name: "events"
+
+
+    output:
+      type: "stdout"
+      append_newline: true

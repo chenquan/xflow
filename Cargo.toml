@@ -25,6 +25,9 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 prometheus = "0.13"
 
+# 数据处理
+datafusion = "45.0.0"
+
 # 配置和插件系统
 toml = "0.7"
 dyn-clone = "1.0"
