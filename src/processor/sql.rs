@@ -11,7 +11,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::SchemaExt;
 use serde_json::Value;
-use crate::{Error, Message, MessageBatch, processor::{Processor, ProcessorBatch}};
+use crate::{Error, Message, MessageBatch, processor::{ProcessorBatch}};
 
 /// 窗口类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
