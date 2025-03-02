@@ -39,7 +39,7 @@ regex = "1.8"
 
 # HTTP客户端/服务器
 axum = "0.6"
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 
 # 命令行工具
 clap = { version = "4.3", features = ["derive"] }
