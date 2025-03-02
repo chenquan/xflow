@@ -11,7 +11,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::common::SchemaExt;
 use serde_json::Value;
-use crate::{Error, Message, processor::Processor};
+use crate::{Error, Message, MessageBatch, processor::{Processor, ProcessorBatch}};
 
 /// 窗口类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -397,24 +397,40 @@ impl SqlProcessor {
     }
 }
 
+
 #[async_trait]
-impl Processor for SqlProcessor {
-    async fn process(&self, mut msg: Message) -> Result<Vec<Message>, Error> {
-        // 获取消息内容
-        let content = msg.as_string()?;
+impl ProcessorBatch for SqlProcessor {
+    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
+        // 如果批次为空，直接返回空结果
+        if msg.is_empty() {
+            return Ok(vec![]);
+        }
 
-        // 解析输入数据为DataFusion表
-        let input_batch = self.parse_input(&content).await?;
 
-        let result_batch = self.execute_query(input_batch).await?;
-        // 结果
-        let result_msg = self.format_output(&result_batch)?;
+        // 批量处理多条消息
+        let mut input_batches = Vec::with_capacity(msg.len());
 
-        Ok(result_msg)
+        // 解析所有消息为DataFusion表
+        for message in msg.iter() {
+            let content = message.as_string()?;
+            let batch = self.parse_input(&content).await?;
+            input_batches.push(batch);
+        }
+
+        // 合并所有输入批次
+        let combined_input = self.combine_batches(&input_batches)?;
+
+        // 执行SQL查询
+        let result_batch = self.execute_query(combined_input).await?;
+
+        // 格式化结果
+        let result_messages = self.format_output(&result_batch)?;
+
+        Ok(vec![result_messages.into()])
     }
 
     async fn close(&self) -> Result<(), Error> {
-        // SQL处理器不需要特殊的关闭操作
+        // 复用Processor的close方法
         Ok(())
     }
 }
