@@ -20,9 +20,9 @@ pub struct FileInputConfig {
     /// 输入文件路径
     pub path: String,
     /// 是否在读取完成后关闭
-    pub close_on_eof: bool,
+    pub close_on_eof: Option<bool>,
     /// 是否从文件开头开始读取（否则从末尾开始）
-    pub start_from_beginning: bool,
+    pub start_from_beginning: Option<bool>,
 }
 
 /// 文件输入组件
@@ -58,7 +58,7 @@ impl Input for FileInput {
         let mut reader = BufReader::new(file);
 
         // 如果不是从开头开始读取，则移动到文件末尾
-        if !self.config.start_from_beginning {
+        if !self.config.start_from_beginning.unwrap_or(true) {
             reader.seek(SeekFrom::End(0)).map_err(|e| {
                 Error::Processing(format!("无法定位到文件末尾: {}", e))
             })?;
@@ -78,8 +78,8 @@ impl Input for FileInput {
             return Err(Error::Connection("输入未连接".to_string()));
         }
 
-        if self.eof_reached.load(Ordering::SeqCst) && self.config.close_on_eof {
-            return Err(Error::Processing("已到达文件末尾".to_string()));
+        if self.eof_reached.load(Ordering::SeqCst) && self.config.close_on_eof.unwrap_or(true) {
+            return Err(Error::Done);
         }
 
 
@@ -93,7 +93,6 @@ impl Input for FileInput {
             }
 
             let reader = reader_mutex.unwrap();
-            // let mut reader = reader_mutex.lock().await;
             bytes_read = reader.read_line(&mut line).map_err(Error::Io)?;
         }
 
@@ -102,8 +101,8 @@ impl Input for FileInput {
             self.eof_reached.store(true, Ordering::SeqCst);
 
             // 如果配置为关闭，则返回错误
-            if self.config.close_on_eof {
-                return Err(Error::Processing("已到达文件末尾".to_string()));
+            if self.config.close_on_eof.unwrap_or(true) {
+                return Err(Error::Done);
             }
 
             // 否则等待一段时间后重试（模拟tail -f行为）

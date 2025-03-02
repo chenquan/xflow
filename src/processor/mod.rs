@@ -9,9 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Message, MessageBatch};
 
 pub mod batch;
-pub mod filter;
-pub mod grok;
-pub mod json;
+
 pub mod sql;
 
 /// 处理器组件的特征接口
@@ -57,9 +55,6 @@ where
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ProcessorConfig {
     Batch(batch::BatchProcessorConfig),
-    Filter(filter::FilterProcessorConfig),
-    Grok(grok::GrokProcessorConfig),
-    Json(json::JsonProcessorConfig),
     Sql(sql::SqlProcessorConfig),
 
 }
@@ -69,9 +64,6 @@ impl ProcessorConfig {
     pub fn build(&self) -> Result<Arc<dyn ProcessorBatch>, Error> {
         match self {
             ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
-            ProcessorConfig::Filter(config) => Ok(Arc::new(filter::FilterProcessor::new(config)?)),
-            ProcessorConfig::Grok(config) => Ok(Arc::new(grok::GrokProcessor::new(config)?)),
-            ProcessorConfig::Json(config) => Ok(Arc::new(json::JsonProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
         }
     }

@@ -19,9 +19,9 @@ pub struct FileOutputConfig {
     /// 输出文件路径
     pub path: String,
     /// 是否在每条消息后添加换行符
-    pub append_newline: bool,
+    pub append_newline: Option<bool>,
     /// 是否追加到文件末尾（而不是覆盖）
-    pub append: bool,
+    pub append: Option<bool>,
 }
 
 /// 文件输出组件
@@ -53,13 +53,13 @@ impl Output for FileOutput {
                 std::fs::create_dir_all(parent).map_err(Error::Io)?
             }
         }
-
+        let append = self.config.append.unwrap_or(true);
         // 打开文件
         let file = OpenOptions::new()
             .write(true)
             .create(true)
-            .append(self.config.append)
-            .truncate(!self.config.append)
+            .append(append)
+            .truncate(!append)
             .open(path)
             .map_err(Error::Io)?;
         let writer_arc = self.writer.clone();
@@ -80,7 +80,7 @@ impl Output for FileOutput {
         let writer = writer_arc_guard.as_ref();
         let mut file = writer.ok_or(Error::Connection("输出未连接".to_string()))?;
 
-        if self.config.append_newline {
+        if self.config.append_newline.unwrap_or(true) {
             writeln!(file, "{}", content).map_err(Error::Io)?
         } else {
             write!(file, "{}", content).map_err(Error::Io)?

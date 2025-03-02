@@ -15,7 +15,7 @@ use crate::{Error, Message, output::Output};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StdoutOutputConfig {
     /// 是否在每条消息后添加换行符
-    pub append_newline: bool,
+    pub append_newline: Option<bool>,
 }
 
 /// 标准输出组件
@@ -51,7 +51,7 @@ impl Output for StdoutOutput {
         let content = msg.as_string()?;
         let mut writer = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
 
-        if self.config.append_newline {
+        if self.config.append_newline.unwrap_or(true) {
             writeln!(writer, "{}", content).map_err(Error::Io)?
         } else {
             write!(writer, "{}", content).map_err(Error::Io)?
@@ -61,7 +61,7 @@ impl Output for StdoutOutput {
         Ok(())
     }
 
-    async fn close(&  self) -> Result<(), Error> {
+    async fn close(&self) -> Result<(), Error> {
         self.connected.store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }

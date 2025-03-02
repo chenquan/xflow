@@ -21,7 +21,7 @@ pub struct HttpInputConfig {
     /// 路径
     pub path: String,
     /// 是否启用CORS
-    pub cors_enabled: bool,
+    pub cors_enabled: Option<bool>,
 }
 
 /// HTTP输入组件
