@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use flume::{Receiver, RecvError, SendError, Sender};
 use tokio::sync::Mutex;
-
+use tracing::{error, info};
 use crate::{input::Input, Error, Message};
 
 /// MQTT输入配置
@@ -39,20 +40,25 @@ pub struct MqttInputConfig {
 pub struct MqttInput {
     config: MqttInputConfig,
     client: Arc<Mutex<Option<AsyncClient>>>,
-    queue: Arc<Mutex<VecDeque<Message>>>,
+    // queue: Arc<Mutex<VecDeque<Message>>>,
     connected: AtomicBool,
     eventloop_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    sender: Arc<Sender<Message>>,
+    receiver: Arc<Receiver<Message>>,
 }
 
 impl MqttInput {
     /// 创建一个新的MQTT输入组件
     pub fn new(config: &MqttInputConfig) -> Result<Self, Error> {
+        let (sender, receiver) = flume::bounded::<Message>(1000);
         Ok(Self {
             config: config.clone(),
             client: Arc::new(Mutex::new(None)),
-            queue: Arc::new(Mutex::new(VecDeque::new())),
+            // queue: Arc::new(Mutex::new(VecDeque::new())),
             connected: AtomicBool::new(false),
             eventloop_handle: Arc::new(Mutex::new(None)),
+            sender: Arc::new(sender),
+            receiver: Arc::new(receiver),
         })
     }
 }
@@ -101,14 +107,17 @@ impl Input for MqttInput {
                 .map_err(|e| Error::Connection(format!("无法订阅MQTT主题 {}: {}", topic, e)))?;
         }
 
+        self.connected.store(true, Ordering::SeqCst);
+
+
         // 保存客户端
         let client_arc = self.client.clone();
         let mut client_guard = client_arc.lock().await;
         *client_guard = Some(client);
 
         // 启动事件循环处理线程
-        let queue = self.queue.clone();
         let connected = self.connected.load(Ordering::SeqCst);
+        let sender_arc = self.sender.clone();
         let eventloop_handle = tokio::spawn(async move {
             while connected {
                 match eventloop.poll().await {
@@ -118,8 +127,12 @@ impl Input for MqttInput {
                             let msg = Message::new(payload);
 
                             // 将消息添加到队列
-                            let mut queue_guard = queue.lock().await;
-                            queue_guard.push_back(msg);
+                            match sender_arc.send_async(msg).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("{}",e)
+                                }
+                            };
                         }
                     }
                     Err(e) => {
@@ -136,7 +149,6 @@ impl Input for MqttInput {
         let mut eventloop_handle_guard = eventloop_handle_arc.lock().await;
         *eventloop_handle_guard = Some(eventloop_handle);
 
-        self.connected.store(true, Ordering::SeqCst);
         Ok(())
     }
 
@@ -145,19 +157,13 @@ impl Input for MqttInput {
             return Err(Error::Connection("输入未连接".to_string()));
         }
 
-        // 尝试从队列中获取消息
-        let msg_option;
-        {
-            let mut queue = self.queue.lock().await;
-            msg_option = queue.pop_front();
-        }
-
-        if let Some(msg) = msg_option {
-            Ok(msg)
-        } else {
-            // 如果队列为空，则等待一段时间后返回错误
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            Err(Error::Processing("队列为空".to_string()))
+        match self.receiver.recv() {
+            Ok(msg) => {
+                Ok(msg)
+            }
+            Err(_) => {
+                Err(Error::Done)
+            }
         }
     }
 
