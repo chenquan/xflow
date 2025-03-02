@@ -49,12 +49,10 @@ pub struct WindowConfig {
 pub struct SqlProcessorConfig {
     /// SQL查询语句
     pub query: String,
-    /// 输入格式（json, csv）
-    pub input_format: String,
+
     /// 表名（用于SQL查询中引用）
     pub table_name: String,
-    /// 输出格式（json, csv）
-    pub output_format: String,
+
     /// 窗口配置（可选，用于流式SQL）
     pub window: Option<WindowConfig>,
     /// 状态保留时间（毫秒，0表示无限，仅用于流式SQL）
@@ -110,14 +108,7 @@ impl SqlProcessor {
 
     /// 将消息内容解析为DataFusion表
     async fn parse_input(&self, content: &str) -> Result<RecordBatch, Error> {
-        match self.config.input_format.as_str() {
-            "json" => self.parse_json_input(content).await,
-            "csv" => self.parse_csv_input(content).await,
-            _ => Err(Error::Config(format!(
-                "不支持的输入格式: {}",
-                self.config.input_format
-            ))),
-        }
+        self.parse_json_input(content).await
     }
 
     /// 解析JSON输入
@@ -213,32 +204,7 @@ impl SqlProcessor {
         }
     }
 
-    /// 解析CSV输入
-    async fn parse_csv_input(&self, content: &str) -> Result<RecordBatch, Error> {
-        // 创建内存中的CSV阅读器
-        let ctx = SessionContext::new();
-        let options = CsvReadOptions::new()
-            .has_header(true)
-            .delimiter(b',');
 
-        // 注册内存表
-        ctx.register_csv("temp_csv", content, options).await
-            .map_err(|e| Error::Processing(format!("CSV解析错误: {}", e)))?;
-
-        // 执行简单查询获取数据
-        let df = ctx.sql("SELECT * FROM temp_csv").await
-            .map_err(|e| Error::Processing(format!("CSV查询错误: {}", e)))?;
-
-        // 获取第一个批次
-        let batches = df.collect().await
-            .map_err(|e| Error::Processing(format!("收集CSV数据错误: {}", e)))?;
-
-        if batches.is_empty() {
-            return Err(Error::Processing("CSV数据为空".to_string()));
-        }
-
-        Ok(batches[0].clone())
-    }
 
     /// 执行SQL查询
     async fn execute_query(&self, batch: RecordBatch) -> Result<RecordBatch, Error> {
@@ -266,14 +232,7 @@ impl SqlProcessor {
 
     /// 将查询结果格式化为输出
     fn format_output(&self, batch: &RecordBatch) -> Result<String, Error> {
-        match self.config.output_format.as_str() {
-            "json" => self.format_json_output(batch),
-            "csv" => self.format_csv_output(batch),
-            _ => Err(Error::Config(format!(
-                "不支持的输出格式: {}",
-                self.config.output_format
-            ))),
-        }
+        self.format_json_output(batch)
     }
 
     /// 格式化为JSON输出
@@ -370,85 +329,7 @@ impl SqlProcessor {
             .map_err(|e| Error::Processing(format!("JSON序列化错误: {}", e)))
     }
 
-    /// 格式化为CSV输出
-    fn format_csv_output(&self, batch: &RecordBatch) -> Result<String, Error> {
-        let schema = batch.schema();
-        let mut result = String::new();
 
-        // 添加标题行
-        for (i, field) in schema.fields().iter().enumerate() {
-            if i > 0 {
-                result.push(',');
-            }
-            result.push_str(field.name());
-        }
-        result.push('\n');
-
-        // 添加数据行
-        for row_idx in 0..batch.num_rows() {
-            for col_idx in 0..batch.num_columns() {
-                if col_idx > 0 {
-                    result.push(',');
-                }
-
-                let column = batch.column(col_idx);
-                if column.is_null(row_idx) {
-                    // 空值处理为空字符串
-                    result.push_str("");
-                } else {
-                    // 获取值并处理引号和逗号
-                    let value = if let Some(s) = format!("{:?}", column.as_ref()).strip_prefix("StringArray\n[") {
-                        if let Some(end) = s.strip_suffix("]") {
-                            let values: Vec<&str> = end.split(",").collect();
-                            if row_idx < values.len() {
-                                values[row_idx].trim().trim_matches('"').to_string()
-                            } else {
-                                "".to_string()
-                            }
-                        } else {
-                            "".to_string()
-                        }
-                    } else {
-                        // 尝试其他格式的数组
-                        let array_str = format!("{:?}", column.as_ref());
-                        if array_str.contains("[") && array_str.contains("]") {
-                            let start_idx = array_str.find("[").unwrap_or(0) + 1;
-                            let end_idx = array_str.find("]").unwrap_or(array_str.len());
-                            if start_idx < end_idx {
-                                let content = &array_str[start_idx..end_idx];
-                                let values: Vec<&str> = content.split(",").collect();
-                                if row_idx < values.len() {
-                                    values[row_idx].trim().trim_matches('"').to_string()
-                                } else {
-                                    "".to_string()
-                                }
-                            } else {
-                                "".to_string()
-                            }
-                        } else {
-                            "".to_string()
-                        }
-                    };
-                    if value.contains(',') || value.contains('"') || value.contains('\n') {
-                        // 需要引号包裹并转义内部引号
-                        result.push('"');
-                        for c in value.chars() {
-                            if c == '"' {
-                                result.push('"'); // 双引号转义
-                            }
-                            result.push(c);
-                        }
-                        result.push('"');
-                    } else {
-                        result.push_str(&value);
-                    }
-                }
-            }
-            result.push('\n');
-        }
-
-        Ok(result)
-    }
 
 
     /// 提取时间戳
