@@ -155,6 +155,7 @@ impl fmt::Display for Message {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MessageBatch(Vec<Message>);
 
 impl MessageBatch {

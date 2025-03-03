@@ -48,13 +48,49 @@ impl Stream {
         let (output_sender, output_receiver) = flume::bounded::<(Vec<MessageBatch>, Arc<dyn Ack>)>(1000);
         let input = Arc::clone(&self.input);
 
+        for i in 0..self.thread_num {
+            let pipeline = self.pipeline.clone();
+            let input_receiver = input_receiver.clone();
+            let output_sender = output_sender.clone();
+
+            tokio::spawn(async move {
+                let i = i + 1;
+                info!("Worker {} started", i);
+                loop {
+                    match input_receiver.recv_async().await {
+                        Ok((msg, ack)) => {
+                            // 通过管道处理消息
+                            let processed = pipeline.process(msg).await;
+
+                            // 处理结果消息
+                            match processed {
+                                Ok(msgs) => {
+                                    if let Err(e) = output_sender.send_async((msgs, ack)).await {
+                                        error!("Failed to send processed message: {}", e);
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    error!("{}", e)
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            return;
+                        }
+                    }
+                }
+                drop(output_sender);
+                info!("Worker {} stopped", i);
+            });
+        }
+
         tokio::spawn(async move {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-                        let arc = msg.1.clone();
-                        let message_batch = msg.0;
-                        if let Err(e) = input_sender.send_async((message_batch, arc)).await {
+
+                        if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
                             break;
                         }
@@ -76,44 +112,6 @@ impl Stream {
                 };
             }
         });
-
-        for i in 0..self.thread_num {
-            let pipeline = self.pipeline.clone();
-            let input_receiver = input_receiver.clone();
-            let output_sender = output_sender.clone();
-
-            tokio::spawn(async move {
-                let i = i + 1;
-                info!("Worker {} started", i);
-                loop {
-                    match input_receiver.recv_async().await {
-                        Ok((msg, ack)) => {
-                            // 通过管道处理消息
-                            let processed = pipeline.process(msg).await;
-                            // 处理结果消息
-                            match processed {
-                                Ok(msgs) => {
-                                    if let Err(e) = output_sender.send_async((msgs, ack)).await {
-                                        error!("Failed to send processed message: {}", e);
-                                        break;
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("{}", e)
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            // error!("3   {}",e);
-                            // 通道关闭时退出循环
-                            break;
-                        }
-                    }
-                }
-                drop(output_sender);
-                info!("Worker {} stopped", i);
-            });
-        }
 
         drop(output_sender);
 

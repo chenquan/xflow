@@ -135,7 +135,7 @@ impl Input for MqttInput {
                     }
                     Err(e) => {
                         // 记录错误并尝试短暂等待后继续
-                        eprintln!("MQTT事件循环错误: {}", e);
+                        error!("MQTT事件循环错误: {}", e);
                         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                     }
                 }
@@ -160,7 +160,6 @@ impl Input for MqttInput {
         match self.receiver.recv() {
             Ok(publish) => {
                 let payload = publish.payload.to_vec();
-                info!("Received message: {}", &String::from_utf8_lossy(&payload));
                 let msg = Message::new(payload);
                 Ok((msg, Arc::new(MqttAck {
                     client: self.client.clone(),
@@ -205,7 +204,6 @@ impl Ack for MqttAck {
     async fn ack(&self) {
         let mutex_guard = self.client.lock().await;
         if let Some(client) = &*mutex_guard {
-            info!("{}", "Ack");
             if let Err(e) = client.ack(&self.publish).await {
                 error!("{}",e);
             }
