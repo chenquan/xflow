@@ -3,9 +3,10 @@
 //! 从MQTT代理接收数据
 
 use async_trait::async_trait;
-use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
+use rumqttc::{AsyncClient, ClientError, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::future::Future;
 use std::string::FromUtf8Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -204,8 +205,10 @@ impl Ack for MqttAck {
     async fn ack(&self) {
         let mutex_guard = self.client.lock().await;
         if let Some(client) = &*mutex_guard {
-            // 尝试断开连接，但不等待结果
-            let _ = client.ack(&self.publish);
+            info!("{}", "Ack");
+            if let Err(e) = client.ack(&self.publish).await {
+                error!("{}",e);
+            }
         }
     }
 }
