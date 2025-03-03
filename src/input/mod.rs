@@ -75,22 +75,22 @@ impl Ack for NoopAck {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum InputConfig {
-    // File(file::FileInputConfig),
-    // Http(http::HttpInputConfig),
+    File(file::FileInputConfig),
+    Http(http::HttpInputConfig),
     // Kafka(kafka::KafkaInputConfig),
     Memory(memory::MemoryInputConfig),
-    // Mqtt(mqtt::MqttInputConfig),
+    Mqtt(mqtt::MqttInputConfig),
 }
 
 impl InputConfig {
     /// 根据配置构建输入组件
     pub fn build(&self) -> Result<Arc<dyn InputBatch>, Error> {
         match self {
-            // InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
-            // InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
+            InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
+            InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
             // InputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaInput::new(config)?)),
             InputConfig::Memory(config) => Ok(Arc::new(memory::MemoryInput::new(config)?)),
-            // InputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttInput::new(config)?)),
+            InputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttInput::new(config)?)),
         }
     }
 }
