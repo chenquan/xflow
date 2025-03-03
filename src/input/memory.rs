@@ -73,9 +73,6 @@ impl Input for MemoryInput {
         if let Some(msg) = msg_option {
             Ok(msg)
         } else {
-            // 如果队列为空，则等待一段时间后返回错误
-            // 在实际应用中，这里可能需要实现更复杂的等待机制
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             Err(Error::Done)
         }
     }
@@ -85,7 +82,7 @@ impl Input for MemoryInput {
         Ok(())
     }
 
-  async  fn close(&self) -> Result<(), Error> {
+    async fn close(&self) -> Result<(), Error> {
         self.connected.store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }

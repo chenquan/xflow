@@ -12,6 +12,7 @@ pub mod file;
 pub mod http;
 pub mod kafka;
 pub mod memory;
+pub mod mqtt;
 
 /// 输入组件的特征接口
 #[async_trait]
@@ -77,6 +78,7 @@ pub enum InputConfig {
     Http(http::HttpInputConfig),
     // Kafka(kafka::KafkaInputConfig),
     Memory(memory::MemoryInputConfig),
+    Mqtt(mqtt::MqttInputConfig),
 }
 
 impl InputConfig {
@@ -87,6 +89,7 @@ impl InputConfig {
             InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
             // InputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaInput::new(config)?)),
             InputConfig::Memory(config) => Ok(Arc::new(memory::MemoryInput::new(config)?)),
+            InputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttInput::new(config)?)),
         }
     }
 }
