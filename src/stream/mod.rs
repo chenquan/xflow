@@ -7,7 +7,7 @@ use flume::RecvError;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, Message, MessageBatch};
-use crate::input::InputBatch;
+use crate::input::{Ack, InputBatch};
 use crate::output::OutputBatch;
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
@@ -44,15 +44,17 @@ impl Stream {
         self.output.connect().await?;;
 
 
-        let (input_sender, input_receiver) = flume::bounded::<MessageBatch>(1000);
-        let (output_sender, output_receiver) = flume::bounded::<MessageBatch>(1000);
+        let (input_sender, input_receiver) = flume::bounded::<(MessageBatch, Arc<dyn Ack>)>(1000);
+        let (output_sender, output_receiver) = flume::bounded::<(Vec<MessageBatch>, Arc<dyn Ack>)>(1000);
         let input = Arc::clone(&self.input);
 
         tokio::spawn(async move {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-                        if let Err(e) = input_sender.send_async(msg).await {
+                        let arc = msg.1.clone();
+                        let message_batch = msg.0;
+                        if let Err(e) = input_sender.send_async((message_batch, arc)).await {
                             error!("Failed to send input message: {}", e);
                             break;
                         }
@@ -65,9 +67,9 @@ impl Stream {
                                 return;
                             }
                             _ => {
-                                error!("1  {}", e);
+                                error!("{}", e);
                                 // 发生错误时，关闭发送端以通知所有工作线程
-                                return;
+                                continue;
                             }
                         };
                     }
@@ -85,21 +87,19 @@ impl Stream {
                 info!("Worker {} started", i);
                 loop {
                     match input_receiver.recv_async().await {
-                        Ok(msg) => {
+                        Ok((msg, ack)) => {
                             // 通过管道处理消息
                             let processed = pipeline.process(msg).await;
                             // 处理结果消息
                             match processed {
                                 Ok(msgs) => {
-                                    for msg in msgs {
-                                        if let Err(e) = output_sender.send_async(msg).await {
-                                            error!("Failed to send processed message: {}", e);
-                                            break;
-                                        }
+                                    if let Err(e) = output_sender.send_async((msgs, ack)).await {
+                                        error!("Failed to send processed message: {}", e);
+                                        break;
                                     }
                                 }
                                 Err(e) => {
-                                    error!("2   {}", e)
+                                    error!("{}", e)
                                 }
                             }
                         }
@@ -134,10 +134,12 @@ impl Stream {
             //     }
             // }
 
-            if let Ok(_) = self.output.write(&msg).await {
-                // 确认消息已成功处理
-                self.input.acknowledge(&msg).await?
-            };
+            for x in &msg.0 {
+                self.output.write(x).await?
+            }
+
+            // 确认消息已成功处理
+            msg.1.ack().await;
         }
     }
 

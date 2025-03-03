@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Message, input::Input};
+use crate::input::{Ack, NoopAck};
 
 /// 文件输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +72,7 @@ impl Input for FileInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<Message, Error> {
+    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
         let reader_arc = self.reader.clone();
         let mut reader_mutex = reader_arc.lock().await;
         if !self.connected.load(Ordering::SeqCst) || reader_mutex.is_none() {
@@ -118,13 +119,9 @@ impl Input for FileInput {
             }
         }
 
-        Ok(Message::from_string(&line))
+        Ok((Message::from_string(&line), Arc::new(NoopAck)))
     }
 
-    async fn acknowledge(&self, _msg: &Message) -> Result<(), Error> {
-        // 文件输入不需要确认机制
-        Ok(())
-    }
 
     async fn close(&self) -> Result<(), Error> {
         self.connected.store(false, Ordering::SeqCst);

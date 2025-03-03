@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use axum::{Router, routing::post, extract::State, http::StatusCode};
 
 use crate::{Error, Message, input::Input};
+use crate::input::{Ack, NoopAck};
 
 /// HTTP输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,7 +97,7 @@ impl Input for HttpInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<Message, Error> {
+    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
         if !self.connected.load(Ordering::SeqCst) {
             return Err(Error::Connection("输入未连接".to_string()));
         }
@@ -109,7 +110,7 @@ impl Input for HttpInput {
         }
 
         if let Some(msg) = msg_option {
-            Ok(msg)
+            Ok((msg, Arc::new(NoopAck)))
         } else {
             // 如果队列为空，则等待一段时间后返回错误
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -117,10 +118,6 @@ impl Input for HttpInput {
         }
     }
 
-    async fn acknowledge(&self, _msg: &Message) -> Result<(), Error> {
-        // HTTP输入不需要确认机制
-        Ok(())
-    }
 
     async fn close(&self) -> Result<(), Error> {
         let mut server_handle_guard = self.server_handle.lock().await;

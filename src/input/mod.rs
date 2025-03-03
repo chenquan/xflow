@@ -13,7 +13,10 @@ pub mod http;
 pub mod kafka;
 pub mod memory;
 pub mod mqtt;
-
+#[async_trait]
+pub trait Ack: Send + Sync {
+    async fn ack(&self);
+}
 /// 输入组件的特征接口
 #[async_trait]
 pub trait Input: Send + Sync {
@@ -21,10 +24,8 @@ pub trait Input: Send + Sync {
     async fn connect(&self) -> Result<(), Error>;
 
     /// 从输入源读取消息
-    async fn read(&self) -> Result<Message, Error>;
+    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error>;
 
-    /// 确认消息已被处理
-    async fn acknowledge(&self, msg: &Message) -> Result<(), Error>;
 
     /// 关闭输入源连接
     async fn close(&self) -> Result<(), Error>;
@@ -35,10 +36,8 @@ pub trait InputBatch: Send + Sync {
     async fn connect(&self) -> Result<(), Error>;
 
     /// 从输入源读取消息
-    async fn read(&self) -> Result<MessageBatch, Error>;
+    async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error>;
 
-    /// 确认消息已被处理
-    async fn acknowledge(&self, msg: &[Message]) -> Result<(), Error>;
 
     /// 关闭输入源连接
     async fn close(&self) -> Result<(), Error>;
@@ -53,43 +52,46 @@ where
         self.connect().await
     }
 
-    async fn read(&self) -> Result<MessageBatch, Error> {
-        let result = self.read().await?;
-        Ok(MessageBatch::new_single(result))
+    async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
+        let (result, x) = self.read().await?;
+        Ok((MessageBatch::new_single(result), x))
     }
 
-    async fn acknowledge(&self, msg: &[Message]) -> Result<(), Error> {
-        for x in msg {
-            self.acknowledge(x).await?
-        }
-        Ok(())
-    }
 
     async fn close(&self) -> Result<(), Error> {
         self.close().await
     }
 }
 
+
+pub struct NoopAck;
+
+#[async_trait]
+impl Ack for NoopAck {
+    async fn ack(&self) {}
+}
+
 /// 输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum InputConfig {
-    File(file::FileInputConfig),
-    Http(http::HttpInputConfig),
+    // File(file::FileInputConfig),
+    // Http(http::HttpInputConfig),
     // Kafka(kafka::KafkaInputConfig),
     Memory(memory::MemoryInputConfig),
-    Mqtt(mqtt::MqttInputConfig),
+    // Mqtt(mqtt::MqttInputConfig),
 }
 
 impl InputConfig {
     /// 根据配置构建输入组件
     pub fn build(&self) -> Result<Arc<dyn InputBatch>, Error> {
         match self {
-            InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
-            InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
+            // InputConfig::File(config) => Ok(Arc::new(file::FileInput::new(config)?)),
+            // InputConfig::Http(config) => Ok(Arc::new(http::HttpInput::new(config)?)),
             // InputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaInput::new(config)?)),
             InputConfig::Memory(config) => Ok(Arc::new(memory::MemoryInput::new(config)?)),
-            InputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttInput::new(config)?)),
+            // InputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttInput::new(config)?)),
         }
     }
 }
+

@@ -3,7 +3,7 @@
 //! 从MQTT代理接收数据
 
 use async_trait::async_trait;
-use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::string::FromUtf8Error;
@@ -13,6 +13,7 @@ use flume::{Receiver, RecvError, SendError, Sender};
 use tokio::sync::Mutex;
 use tracing::{error, info};
 use crate::{input::Input, Error, Message};
+use crate::input::Ack;
 
 /// MQTT输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,21 +42,19 @@ pub struct MqttInputConfig {
 pub struct MqttInput {
     config: MqttInputConfig,
     client: Arc<Mutex<Option<AsyncClient>>>,
-    // queue: Arc<Mutex<VecDeque<Message>>>,
     connected: AtomicBool,
     eventloop_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
-    sender: Arc<Sender<Message>>,
-    receiver: Arc<Receiver<Message>>,
+    sender: Arc<Sender<Publish>>,
+    receiver: Arc<Receiver<Publish>>,
 }
 
 impl MqttInput {
     /// 创建一个新的MQTT输入组件
     pub fn new(config: &MqttInputConfig) -> Result<Self, Error> {
-        let (sender, receiver) = flume::bounded::<Message>(1000);
+        let (sender, receiver) = flume::bounded::<Publish>(1000);
         Ok(Self {
             config: config.clone(),
             client: Arc::new(Mutex::new(None)),
-            // queue: Arc::new(Mutex::new(VecDeque::new())),
             connected: AtomicBool::new(false),
             eventloop_handle: Arc::new(Mutex::new(None)),
             sender: Arc::new(sender),
@@ -74,7 +73,7 @@ impl Input for MqttInput {
         // 创建MQTT选项
         let mut mqtt_options =
             MqttOptions::new(&self.config.client_id, &self.config.host, self.config.port);
-
+        mqtt_options.set_manual_acks(true);
         // 设置认证信息
         if let (Some(username), Some(password)) = (&self.config.username, &self.config.password) {
             mqtt_options.set_credentials(username, password);
@@ -92,7 +91,6 @@ impl Input for MqttInput {
 
         // 创建MQTT客户端
         let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
-
         // 订阅主题
         let qos_level = match self.config.qos {
             Some(0) => QoS::AtMostOnce,
@@ -124,11 +122,9 @@ impl Input for MqttInput {
                 match eventloop.poll().await {
                     Ok(event) => {
                         if let Event::Incoming(Packet::Publish(publish)) = event {
-                            let payload = publish.payload.to_vec();
-                            info!("Received message: {}", &String::from_utf8_lossy(&payload));
-                            let msg = Message::new(payload);
+
                             // 将消息添加到队列
-                            match sender_arc.send_async(msg).await {
+                            match sender_arc.send_async(publish).await {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!("{}",e)
@@ -154,14 +150,21 @@ impl Input for MqttInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<Message, Error> {
+    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
         if !self.connected.load(Ordering::SeqCst) {
             return Err(Error::Connection("输入未连接".to_string()));
         }
 
+
         match self.receiver.recv() {
-            Ok(msg) => {
-                Ok(msg)
+            Ok(publish) => {
+                let payload = publish.payload.to_vec();
+                info!("Received message: {}", &String::from_utf8_lossy(&payload));
+                let msg = Message::new(payload);
+                Ok((msg, Arc::new(MqttAck {
+                    client: self.client.clone(),
+                    publish,
+                })))
             }
             Err(_) => {
                 Err(Error::Done)
@@ -169,10 +172,6 @@ impl Input for MqttInput {
         }
     }
 
-    async fn acknowledge(&self, _msg: &Message) -> Result<(), Error> {
-        // MQTT输入不需要确认机制，因为QoS已经在MQTT协议层处理
-        Ok(())
-    }
 
     async fn close(&self) -> Result<(), Error> {
         // 停止事件循环处理线程
@@ -192,5 +191,21 @@ impl Input for MqttInput {
 
         self.connected.store(false, Ordering::SeqCst);
         Ok(())
+    }
+}
+
+
+struct MqttAck {
+    client: Arc<Mutex<Option<AsyncClient>>>,
+    publish: Publish,
+}
+#[async_trait]
+impl Ack for MqttAck {
+    async fn ack(&self) {
+        let mutex_guard = self.client.lock().await;
+        if let Some(client) = &*mutex_guard {
+            // 尝试断开连接，但不等待结果
+            let _ = client.ack(&self.publish);
+        }
     }
 }

@@ -11,6 +11,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Message, input::Input};
+use crate::input::Ack;
+use crate::input::NoopAck;
 
 /// 内存输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +60,7 @@ impl Input for MemoryInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<Message, Error> {
+    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
         if !self.connected.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(Error::Connection("输入未连接".to_string()));
         }
@@ -71,16 +73,12 @@ impl Input for MemoryInput {
         }
 
         if let Some(msg) = msg_option {
-            Ok(msg)
+            Ok((msg, Arc::new(NoopAck)))
         } else {
             Err(Error::Done)
         }
     }
 
-    async fn acknowledge(&self, _msg: &Message) -> Result<(), Error> {
-        // 内存输入不需要确认机制
-        Ok(())
-    }
 
     async fn close(&self) -> Result<(), Error> {
         self.connected.store(false, std::sync::atomic::Ordering::SeqCst);
