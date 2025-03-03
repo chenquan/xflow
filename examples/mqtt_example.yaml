@@ -4,7 +4,7 @@ streams:
   - input:
       type: "mqtt"
       # 内存输入配置，提供一些测试消息
-      host: "broker.emqx.io"
+      host: "localhost"
       port: 1883
       qos: 1
       client_id: "flow_xx_xdsfsfsfsf"
@@ -36,7 +36,7 @@ streams:
 #      path: "examples/output.txt"
       type: "mqtt"
       # 内存输入配置，提供一些测试消息
-      host: "broker.emqx.io"
+      host: "localhost"
       port: 1883
       qos: 1
       client_id: "flow_xx_xdsfsfsfsfsdsd"

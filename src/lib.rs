@@ -18,7 +18,7 @@ pub mod pipeline;
 pub mod processor;
 pub mod stream;
 pub mod metrics;
-pub mod plugin;
+
 
 /// 表示流处理引擎中的错误
 #[derive(Error, Debug)]
@@ -155,6 +155,7 @@ impl fmt::Display for Message {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MessageBatch(Vec<Message>);
 
 impl MessageBatch {
