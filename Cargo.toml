@@ -33,7 +33,7 @@ datafusion = "45"
 arrow-json = "54"
 
 # 配置和插件系统
-toml = "0.7"
+toml = "0.8"
 dyn-clone = "1.0"
 lazy_static = "1.4"
 regex = "1.8"
