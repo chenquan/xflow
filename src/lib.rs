@@ -1,11 +1,8 @@
 //! Rust流处理引擎
-//!
-//! 这个基于Rust的流处理引擎参考了Benthos的设计理念，
-//! 旨在提供一个高性能、可靠且易于扩展的数据流处理系统。
 
 use std::fmt;
+use std::fmt::Formatter;
 use std::ops::Deref;
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -183,5 +180,21 @@ impl Deref for MessageBatch {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl fmt::Display for MessageBatch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut first = true;
+        write!(f, "[")?;
+        for x in &self.0 {
+            if !first {
+                write!(f, ", ")?; // 添加分隔符
+            }
+            first = false;
+            write!(f, "{}", x)?; // 格式化每个元素
+        }
+        write!(f, "]")?;
+        Ok(())
     }
 }

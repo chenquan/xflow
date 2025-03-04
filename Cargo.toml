@@ -30,6 +30,7 @@ prometheus = "0.13"
 
 # 数据处理
 datafusion = "45"
+arrow-json = "54"
 
 # 配置和插件系统
 toml = "0.7"
@@ -46,3 +47,6 @@ clap = { version = "4.3", features = ["derive"] }
 colored = "2.0"
 flume = "=0.11"
 rumqttc = "0.24.0"
+
+
+humantime = "2.1.0"

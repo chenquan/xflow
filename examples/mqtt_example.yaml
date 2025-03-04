@@ -1,5 +1,6 @@
-# 流式SQL处理示例配置
-
+# MQTT示例配置
+logging:
+  level: trace
 streams:
   - input:
       type: "mqtt"

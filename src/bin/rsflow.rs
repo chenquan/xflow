@@ -56,22 +56,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志系统
     init_logging(&config);
 
-    // 启动引擎
-    info!("正在启动Rust流处理引擎...");
 
     // 创建并运行所有流
     let mut streams = Vec::new();
     let mut handles = Vec::new();
 
     for (i, stream_config) in config.streams.iter().enumerate() {
-        info!("正在初始化流 #{}", i + 1);
+        info!("Initializing flow #{}", i + 1);
 
         match stream_config.build() {
             Ok(stream) => {
                 streams.push(stream);
             }
             Err(e) => {
-                error!("初始化流 #{} 失败: {}", i + 1, e);
+                error!("Initializing flow #{} error: {}", i + 1, e);
                 process::exit(1);
             }
         }
@@ -79,14 +77,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 启动所有流
     for (i, mut stream) in streams.into_iter().enumerate() {
-        info!("正在启动流 #{}", i + 1);
+        info!("Starting flow #{}", i + 1);
 
         // 在新的任务中运行流
         let handle = tokio::spawn(async move {
             match stream.run().await {
-                Ok(_) => info!("流 #{} 成功完成", i + 1),
+                Ok(_) => info!("Flow #{} completed successfully", i + 1),
                 Err(e) => {
-                    error!("流 #{} 运行出错: {}", i + 1, e)
+                    error!("Stream #{} ran with error: {}", i + 1, e)
                 }
             }
         });
@@ -99,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         handle.await?;
     }
 
-    info!("所有流处理任务已完成");
+    info!("All flow tasks have been complete");
     Ok(())
 }
 
@@ -123,5 +121,5 @@ fn init_logging(config: &EngineConfig) -> () {
         .finish();
 
     tracing::subscriber::set_global_default(subscriber)
-        .expect("无法设置全局默认日志订阅者");
+        .expect("You can't set a global default log subscriber");
 }

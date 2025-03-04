@@ -2749,6 +2749,7 @@ name = "rsflow"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrow-json",
  "async-trait",
  "axum",
  "clap",
@@ -2757,6 +2758,7 @@ dependencies = [
  "dyn-clone",
  "flume",
  "futures",
+ "humantime",
  "lazy_static",
  "prometheus",
  "regex",
