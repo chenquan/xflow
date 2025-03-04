@@ -5,3 +5,5 @@
 .DS_Store
 
 examples/output.txt
+
+.run

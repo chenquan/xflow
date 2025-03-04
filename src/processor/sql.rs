@@ -9,6 +9,9 @@ use datafusion::prelude::*;
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Float64Array, NullArray, StringArray};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion::arrow;
+use arrow_json;
+
 use datafusion::common::SchemaExt;
 use serde_json::Value;
 use crate::{Error, Message, MessageBatch, processor::{ProcessorBatch}};
@@ -22,9 +25,7 @@ pub struct SqlProcessorConfig {
 
     /// 表名（用于SQL查询中引用）
     pub table_name: Option<String>,
-
 }
-
 
 /// SQL处理器组件
 pub struct SqlProcessor {
@@ -129,11 +130,10 @@ impl SqlProcessor {
         ctx.register_batch(table_name, batch)
             .map_err(|e| Error::Processing(format!("注册表失败: {}", e)))?;
 
-        // 执行SQL查询
+        // 执行SQL查询并收集结果
         let df = ctx.sql(&self.config.query).await
             .map_err(|e| Error::Processing(format!("SQL查询错误: {}", e)))?;
 
-        // 收集结果
         let result_batches = df.collect().await
             .map_err(|e| Error::Processing(format!("收集查询结果错误: {}", e)))?;
 
@@ -146,102 +146,28 @@ impl SqlProcessor {
 
     /// 将查询结果格式化为输出
     fn format_output(&self, batch: &RecordBatch) -> Result<Vec<Message>, Error> {
-        self.format_json_output(batch)
-    }
+        let mut messages = Vec::with_capacity(batch.num_rows());
 
-    /// 格式化为JSON输出
-    fn format_json_output(&self, batch: &RecordBatch) -> Result<Vec<Message>, Error> {
-        let schema = batch.schema();
-        let mut result = Vec::new();
+        // 使用Arrow的JSON序列化功能
+        let mut buf = Vec::new();
+        let mut writer = arrow_json::ArrayWriter::new(&mut buf);
+        writer.write_batches(&[batch])
+            .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
+        writer.finish()
+            .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
 
-        // 遍历每一行
-        for row_idx in 0..batch.num_rows() {
-            let mut row_obj = serde_json::Map::new();
+        // 解析JSON数组并转换为消息
+        let json_array: Vec<serde_json::Value> = serde_json::from_slice(&buf)
+            .map_err(|e| Error::Processing(format!("JSON解析错误: {}", e)))?;
 
-            // 遍历每一列
-            for col_idx in 0..batch.num_columns() {
-                let column = batch.column(col_idx);
-                let field_name = schema.field(col_idx).name();
-
-                // 获取单元格值并转换为JSON值
-                let value = if column.is_null(row_idx) {
-                    serde_json::Value::Null
-                } else {
-                    // 提取字符串值
-                    let display_value = if let Some(s) = format!("{:?}", column.as_ref()).strip_prefix("StringArray\n[") {
-                        if let Some(end) = s.strip_suffix("]") {
-                            let values: Vec<&str> = end.split(",").collect();
-                            if row_idx < values.len() {
-                                values[row_idx].trim().trim_matches('"').to_string()
-                            } else {
-                                "".to_string()
-                            }
-                        } else {
-                            "".to_string()
-                        }
-                    } else {
-                        // 尝试其他格式的数组
-                        let array_str = format!("{:?}", column.as_ref());
-                        if array_str.contains("[") && array_str.contains("]") {
-                            let start_idx = array_str.find("[").unwrap_or(0) + 1;
-                            let end_idx = array_str.find("]").unwrap_or(array_str.len());
-                            if start_idx < end_idx {
-                                let content = &array_str[start_idx..end_idx];
-                                let values: Vec<&str> = content.split(",").collect();
-                                if row_idx < values.len() {
-                                    values[row_idx].trim().trim_matches('"').to_string()
-                                } else {
-                                    "".to_string()
-                                }
-                            } else {
-                                "".to_string()
-                            }
-                        } else {
-                            "".to_string()
-                        }
-                    };
-
-                    // 尝试将值解析为JSON，如果失败则作为字符串处理
-                    if display_value.starts_with('{') && display_value.ends_with('}') ||
-                        display_value.starts_with('[') && display_value.ends_with(']') {
-                        match serde_json::from_str(&display_value) {
-                            Ok(json_value) => json_value,
-                            Err(_) => serde_json::Value::String(display_value)
-                        }
-                    } else if display_value == "null" {
-                        serde_json::Value::Null
-                    } else if let Ok(num) = display_value.parse::<i64>() {
-                        serde_json::Value::Number(serde_json::Number::from(num))
-                    } else if let Ok(num) = display_value.parse::<f64>() {
-                        match serde_json::Number::from_f64(num) {
-                            Some(n) => serde_json::Value::Number(n),
-                            None => serde_json::Value::String(display_value)
-                        }
-                    } else if display_value == "true" {
-                        serde_json::Value::Bool(true)
-                    } else if display_value == "false" {
-                        serde_json::Value::Bool(false)
-                    } else {
-                        serde_json::Value::String(display_value)
-                    }
-                };
-
-                row_obj.insert(field_name.clone(), value);
-            }
-
-            result.push(serde_json::Value::Object(row_obj));
-        }
-
-        let mut result_msg = vec![];
-
-        for x in result {
-            let msg_str = serde_json::to_string(&x)
+        for json_obj in json_array {
+            let json_str = serde_json::to_string(&json_obj)
                 .map_err(|e| Error::Processing(format!("JSON序列化错误: {}", e)))?;
-            result_msg.push(Message::new(msg_str.into_bytes()))
+            messages.push(Message::new(json_str.as_bytes().to_vec()));
         }
-        Ok(result_msg)
-    }
 
+        Ok(messages)
+    }
 
     /// 合并多个记录批次
     fn combine_batches(&self, batches: &[RecordBatch]) -> Result<RecordBatch, Error> {
@@ -253,87 +179,11 @@ impl SqlProcessor {
             return Ok(batches[0].clone());
         }
 
-        // 使用第一个批次的schema
         let schema = batches[0].schema();
-
-        // 为每一列创建合并数据
-        let mut combined_columns: Vec<Vec<String>> = Vec::new();
-        for _ in 0..schema.fields().len() {
-            combined_columns.push(Vec::new());
-        }
-
-        // 合并所有批次的数据
-        for batch in batches {
-            if !batch.schema().logically_equivalent_names_and_types(&schema) {
-                return Err(Error::Processing("批次schema不一致".to_string()));
-            }
-
-            for row_idx in 0..batch.num_rows() {
-                for col_idx in 0..batch.num_columns() {
-                    if col_idx >= combined_columns.len() {
-                        // 安全检查，确保列索引有效
-                        continue;
-                    }
-
-                    let column = batch.column(col_idx);
-                    let value = if column.is_null(row_idx) {
-                        "null".to_string()
-                    } else {
-                        if let Some(s) = format!("{:?}", column.as_ref()).strip_prefix("StringArray\n[") {
-                            if let Some(end) = s.strip_suffix("]") {
-                                let values: Vec<&str> = end.split(",").collect();
-                                if row_idx < values.len() {
-                                    values[row_idx].trim().trim_matches('"').to_string()
-                                } else {
-                                    "".to_string()
-                                }
-                            } else {
-                                "".to_string()
-                            }
-                        } else {
-                            // 尝试其他格式的数组
-                            let array_str = format!("{:?}", column.as_ref());
-                            if array_str.contains("[") && array_str.contains("]") {
-                                let start_idx = array_str.find("[").unwrap_or(0) + 1;
-                                let end_idx = array_str.find("]").unwrap_or(array_str.len());
-                                if start_idx < end_idx {
-                                    let content = &array_str[start_idx..end_idx];
-                                    let values: Vec<&str> = content.split(",").collect();
-                                    if row_idx < values.len() {
-                                        values[row_idx].trim().trim_matches('"').to_string()
-                                    } else {
-                                        "".to_string()
-                                    }
-                                } else {
-                                    "".to_string()
-                                }
-                            } else {
-                                "".to_string()
-                            }
-                        }
-                    };
-                    combined_columns[col_idx].push(value);
-                }
-            }
-        }
-
-        // 创建Arrow列
-        let arrow_columns: Vec<ArrayRef> = combined_columns.iter()
-            .map(|col| Arc::new(StringArray::from(col.clone())) as ArrayRef)
-            .collect();
-
-        // 创建合并的记录批次
-        RecordBatch::try_new(schema, arrow_columns)
-            .map_err(|e| Error::Processing(format!("创建合并批次失败: {}", e)))
-    }
-
-
-    async fn close(&self) -> Result<(), Error> {
-        // SQL处理器不需要特殊的关闭操作
-        Ok(())
+        arrow::compute::concat_batches(&schema, batches)
+            .map_err(|e| Error::Processing(format!("合并批次失败: {}", e)))
     }
 }
-
 
 #[async_trait]
 impl ProcessorBatch for SqlProcessor {
@@ -342,7 +192,6 @@ impl ProcessorBatch for SqlProcessor {
         if msg.is_empty() {
             return Ok(vec![]);
         }
-
 
         // 批量处理多条消息
         let mut input_batches = Vec::with_capacity(msg.len());
@@ -367,7 +216,6 @@ impl ProcessorBatch for SqlProcessor {
     }
 
     async fn close(&self) -> Result<(), Error> {
-        // 复用Processor的close方法
         Ok(())
     }
 }

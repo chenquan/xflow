@@ -60,7 +60,9 @@ impl Stream {
                     match input_receiver.recv_async().await {
                         Ok((msg, ack)) => {
                             // 通过管道处理消息
+                            debug!("Processing input message: {}", &msg);
                             let processed = pipeline.process(msg).await;
+                            info!("Processing end");
 
                             // 处理结果消息
                             match processed {
@@ -89,7 +91,7 @@ impl Stream {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-
+                        debug!("Received input message: {}",&msg.0);
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
                             break;

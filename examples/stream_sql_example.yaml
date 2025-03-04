@@ -1,5 +1,6 @@
 # 流式SQL处理示例配置
-
+logging:
+  level: trace
 streams:
   - input:
       type: "file"
@@ -22,7 +23,7 @@ streams:
       processors:
         - type: "sql"
           # SQL查询语句，支持标准SQL语法
-          query: "SELECT * ,cast(value as string) as tx FROM flow WHERE value > 10"
+          query: "SELECT * ,cast(value as string) as tx FROM flow"
           # 表名（用于SQL查询中引用）
 #          table_name: "events"
 
