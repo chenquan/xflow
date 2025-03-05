@@ -7,17 +7,20 @@ streams:
       context: '{ "timestamp": 1625000000000, "value": 10, "sensor": "temp_1" }'
       interval: 1s
       batch_size: 10
-  
+
 
 
 
     pipeline:
       thread_num: 4
       processors:
+        - type: "json"
+          mode: "to_arrow"
         - type: "sql"
           # SQL查询语句，支持标准SQL语法
-          query: "SELECT * ,cast(value as string) as tx FROM flow WHERE value >= 10"
-
+          query: "SELECT * FROM flow WHERE value >= 10"
+        - type: "json"
+          mode: "from_arrow"
 
 
     output:

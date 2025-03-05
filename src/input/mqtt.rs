@@ -13,7 +13,7 @@ use std::sync::Arc;
 use flume::{Receiver, RecvError, SendError, Sender};
 use tokio::sync::Mutex;
 use tracing::{error, info};
-use crate::{input::Input, Error, Message};
+use crate::{input::Input, Content, Error, Message};
 use crate::input::Ack;
 
 /// MQTT输入配置
@@ -160,7 +160,7 @@ impl Input for MqttInput {
         match self.receiver.recv() {
             Ok(publish) => {
                 let payload = publish.payload.to_vec();
-                let msg = Message::new(payload);
+                let msg = Message::new_binary(payload);
                 Ok((msg, Arc::new(MqttAck {
                     client: self.client.clone(),
                     publish,

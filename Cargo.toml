@@ -31,7 +31,10 @@ prometheus = "0.13"
 # 数据处理
 datafusion = "45"
 arrow-json = "54"
-
+prost-reflect = "0.14.7"
+prost-types = "0.13.5"
+#protobuf-codegen-pure = "2.28.0"
+protobuf-parse = "3.7.1"
 # 配置和插件系统
 toml = "0.7"
 dyn-clone = "1.0"
@@ -50,3 +53,4 @@ rumqttc = "0.24.0"
 
 
 humantime = "2.1.0"
+protobuf = "3.7.1"

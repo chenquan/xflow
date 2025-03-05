@@ -1,9 +1,10 @@
 //! Rust流处理引擎
 
+use std::any::Any;
 use std::fmt;
 use std::fmt::Formatter;
 use std::ops::Deref;
-
+use datafusion::arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -75,46 +76,60 @@ impl Metadata {
 }
 
 /// 表示流处理引擎中的消息
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Message {
     /// 消息内容
-    content: Vec<u8>,
+    content: Content,
     /// 消息元数据
     metadata: Metadata,
 }
+#[derive(Clone, Debug)]
+pub enum Content {
+    Arrow(RecordBatch),
+    Binary(Vec<u8>),
+}
 
 impl Message {
-    /// 创建一个新消息
-    pub fn new(content: Vec<u8>) -> Self {
+    pub fn new_binary(content: Vec<u8>) -> Self {
         Self {
-            content,
+            content: Content::Binary(content),
+            metadata: Metadata::new(),
+        }
+    }
+    pub fn new_arrow(content: RecordBatch) -> Self {
+        assert!(content.num_rows() <= 1);
+        Self {
+            content: Content::Arrow(content),
             metadata: Metadata::new(),
         }
     }
 
     /// 从字符串创建消息
     pub fn from_string(content: &str) -> Self {
-        Self::new(content.as_bytes().to_vec())
+        Self::new_binary(content.as_bytes().to_vec())
     }
 
     /// 从JSON值创建消息
     pub fn from_json<T: Serialize>(value: &T) -> Result<Self, Error> {
         let content = serde_json::to_vec(value)?;
-        Ok(Self::new(content))
+        Ok(Self::new_binary(content))
     }
 
     /// 获取消息内容
-    pub fn content(&self) -> &[u8] {
-        &self.content
+    pub fn content(&self) -> Result<&[u8], Error> {
+        match &self.content {
+            Content::Arrow(v_) => {
+                Err(Error::Processing("Not serialized messages".to_string()))
+            }
+            Content::Binary(v) => {
+                Ok(v)
+            }
+        }
     }
 
-    /// 获取可变消息内容
-    pub fn content_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.content
-    }
 
     /// 设置消息内容
-    pub fn set_content(&mut self, content: Vec<u8>) {
+    pub fn set_content(&mut self, content: Content) {
         self.content = content;
     }
 
@@ -128,18 +143,18 @@ impl Message {
         &mut self.metadata
     }
 
-    /// 将消息内容解析为JSON
-    pub fn json<'a, T>(&'a self) -> Result<T, Error>
-    where
-        T: Deserialize<'a>,
-    {
-        serde_json::from_slice(&self.content).map_err(Error::from)
-    }
 
     /// 将消息内容解析为字符串
     pub fn as_string(&self) -> Result<String, Error> {
-        String::from_utf8(self.content.clone())
-            .map_err(|e| Error::Processing(format!("无效的UTF-8序列: {}", e)))
+        match &self.content {
+            Content::Arrow(v) => {
+                Err(Error::Processing("无法解析为JSON".to_string()))
+            }
+            Content::Binary(v) => {
+                String::from_utf8(v.clone())
+                    .map_err(|e| Error::Processing(format!("无效的UTF-8序列: {}", e)))
+            }
+        }
     }
 }
 
@@ -147,12 +162,12 @@ impl fmt::Display for Message {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.as_string() {
             Ok(s) => write!(f, "{}", s),
-            Err(_) => write!(f, "<二进制数据: {} 字节>", self.content.len()),
+            Err(_) => write!(f, "<二进制数据: {:?} 字节>", self.content),
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct MessageBatch(Vec<Message>);
 
 impl MessageBatch {

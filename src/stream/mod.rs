@@ -134,12 +134,23 @@ impl Stream {
             //     }
             // }
 
+            let size = &msg.0.len();
+            let mut success_cnt = 0;
             for x in &msg.0 {
-                self.output.write(x).await?
+                match self.output.write(x).await {
+                    Ok(_) => {
+                        success_cnt = success_cnt + 1;
+                    }
+                    Err(e) => {
+                        error!("{}", e);
+                    }
+                }
             }
 
             // 确认消息已成功处理
-            msg.1.ack().await;
+            if size == &success_cnt {
+                msg.1.ack().await;
+            }
         }
     }
 
@@ -172,7 +183,8 @@ impl StreamConfig {
         let (pipeline, thread_num) = self.pipeline.build()?;
         let output = self.output.build()?;
         let buffer = if let Some(buffer_config) = &self.buffer {
-            Some(buffer_config.build()?)
+            // Some(buffer_config.build()?)
+            None
         } else {
             None
         };
