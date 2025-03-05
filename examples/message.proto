@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package message;
+
+
+message Message{
+  int64 timestamp = 1;
+  double value = 2;
+  string sensor = 3;
+}

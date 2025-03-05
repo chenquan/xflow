@@ -14,7 +14,8 @@ use arrow_json;
 
 use datafusion::common::SchemaExt;
 use serde_json::Value;
-use crate::{Error, Message, MessageBatch, processor::{ProcessorBatch}};
+use toml::value::Array;
+use crate::{Error, Message, MessageBatch, processor::{ProcessorBatch}, Content};
 
 const DEFAULT_TABLE_NAME: &str = "flow";
 /// SQL处理器配置
@@ -25,7 +26,9 @@ pub struct SqlProcessorConfig {
 
     /// 表名（用于SQL查询中引用）
     pub table_name: Option<String>,
+
 }
+
 
 /// SQL处理器组件
 pub struct SqlProcessor {
@@ -41,80 +44,16 @@ impl SqlProcessor {
     }
 
     /// 将消息内容解析为DataFusion表
-    async fn parse_input(&self, content: &str) -> Result<RecordBatch, Error> {
-        self.parse_json_input(content).await
-    }
-
-    /// 解析JSON输入
-    async fn parse_json_input(&self, content: &str) -> Result<RecordBatch, Error> {
-        // 解析JSON内容
-        let json_value: serde_json::Value = serde_json::from_str(content)
-            .map_err(|e| Error::Processing(format!("JSON解析错误: {}", e)))?;
-
-        // 处理不同的JSON结构
-        match json_value {
-            Value::Object(obj) => {
-                // 单个对象转换为单行表
-                let mut fields = Vec::new();
-                let mut columns: Vec<ArrayRef> = Vec::new();
-
-                // 提取所有字段和值
-                for (key, value) in obj {
-                    let mut field;
-                    let mut array: ArrayRef;
-                    match value {
-                        Value::Null => {
-                            field = Field::new(&key, DataType::Null, true);
-                            array = Arc::new(NullArray::new(1));
-                        }
-                        Value::Bool(v) => {
-                            field = Field::new(&key, DataType::Boolean, true);
-                            array = Arc::new(BooleanArray::from(vec![v]));
-                        }
-                        Value::Number(v) => {
-                            field = Field::new(&key, DataType::Float64, true);
-                            if let Some(x) = v.as_f64() {
-                                array = Arc::new(Float64Array::from(vec![x]));
-                            } else {
-                                array = Arc::new(Float64Array::from(vec![0f64]));
-                            }
-                        }
-                        Value::String(v) => {
-                            field = Field::new(&key, DataType::Utf8, true);
-                            array = Arc::new(StringArray::from(vec![v]));
-                        }
-                        Value::Array(v) => {
-                            field = Field::new(&key, DataType::Utf8, true);
-
-                            if let Ok(x) = serde_json::to_string(&v) {
-                                array = Arc::new(StringArray::from(vec![x]));
-                            } else {
-                                array = Arc::new(StringArray::from(vec!["[]".to_string()]));
-                            }
-                        }
-                        Value::Object(v) => {
-                            field = Field::new(&key, DataType::Utf8, true);
-                            if let Ok(x) = serde_json::to_string(&v) {
-                                array = Arc::new(StringArray::from(vec![x]));
-                            } else {
-                                array = Arc::new(StringArray::from(vec!["{}".to_string()]));
-                            }
-                        }
-                    };
-                    fields.push(field);
-                    columns.push(array);
-                }
-
-                // 创建schema和记录批次
-                let schema = Arc::new(Schema::new(fields));
-                RecordBatch::try_new(schema, columns)
-                    .map_err(|e| Error::Processing(format!("创建记录批次失败: {}", e)))
+    async fn parse_input(&self, message: Message) -> Result<RecordBatch, Error> {
+        let x = match message.content {
+            Content::Arrow(v) => {
+                v.clone()
             }
-            Value::Array(_) => {
-                Err(Error::Processing("不支持JSON数组".to_string()))
+            Content::Binary(_) => {
+                return Err(Error::Processing("不支持的输入格式".to_string()))?;
             }
-            _ => Err(Error::Processing("输入必须是JSON对象或数组".to_string())),
-        }
+        };
+        Ok(x)
     }
 
 
@@ -146,27 +85,21 @@ impl SqlProcessor {
 
     /// 将查询结果格式化为输出
     fn format_output(&self, batch: &RecordBatch) -> Result<Vec<Message>, Error> {
-        let mut messages = Vec::with_capacity(batch.num_rows());
+        let num_rows = batch.num_rows();
+        let mut mes_batch = Vec::new();
 
-        // 使用Arrow的JSON序列化功能
-        let mut buf = Vec::new();
-        let mut writer = arrow_json::ArrayWriter::new(&mut buf);
-        writer.write_batches(&[batch])
-            .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
-        writer.finish()
-            .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
-
-        // 解析JSON数组并转换为消息
-        let json_array: Vec<serde_json::Value> = serde_json::from_slice(&buf)
-            .map_err(|e| Error::Processing(format!("JSON解析错误: {}", e)))?;
-
-        for json_obj in json_array {
-            let json_str = serde_json::to_string(&json_obj)
-                .map_err(|e| Error::Processing(format!("JSON序列化错误: {}", e)))?;
-            messages.push(Message::new(json_str.as_bytes().to_vec()));
+        for i in 0..num_rows {
+            let columns: Vec<ArrayRef> = batch
+                .columns()
+                .iter()
+                .map(|array| array.slice(i, 1))
+                .collect();
+            let schema = Arc::clone(&batch.schema());
+            let new_batch = RecordBatch::try_new(schema, columns)
+                .map_err(|e| Error::Processing(format!("创建新批次失败: {}", e)))?;
+            mes_batch.push(Message::new_arrow(new_batch));
         }
-
-        Ok(messages)
+        Ok(mes_batch)
     }
 
     /// 合并多个记录批次
@@ -197,9 +130,8 @@ impl ProcessorBatch for SqlProcessor {
         let mut input_batches = Vec::with_capacity(msg.len());
 
         // 解析所有消息为DataFusion表
-        for message in msg.iter() {
-            let content = message.as_string()?;
-            let batch = self.parse_input(&content).await?;
+        for message in msg.0 {
+            let batch = self.parse_input(message).await?;
             input_batches.push(batch);
         }
 

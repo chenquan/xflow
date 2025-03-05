@@ -87,7 +87,7 @@ impl Output for MqttOutput {
 
         // 创建MQTT客户端
         let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
-        
+
         // 保存客户端
         let client_arc = self.client.clone();
         let mut client_guard = client_arc.lock().await;
@@ -119,7 +119,15 @@ impl Output for MqttOutput {
         let client = client_guard.as_ref().ok_or_else(|| Error::Connection("MQTT客户端未初始化".to_string()))?;
 
         // 获取消息内容
-        let payload = msg.content().to_vec();
+        let payload = match msg.content() {
+            Ok(v) => {
+                v.to_vec()
+            }
+            Err(e) => {
+                return Err(e);
+            }
+        };
+
         info!("Send message: {}", &String::from_utf8_lossy(&payload));
 
         // 确定QoS级别
