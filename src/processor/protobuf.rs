@@ -6,6 +6,7 @@ use std::{fs, io};
 use std::path::Path;
 use std::sync::Arc;
 use async_trait::async_trait;
+use datafusion::arrow;
 use serde::{Deserialize, Serialize};
 use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, UInt32Array, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
@@ -17,15 +18,12 @@ use prost_reflect::prost_types::FileDescriptorSet;
 
 use protobuf::Message as ProtobufMessage;
 use tracing::info;
-use crate::{Error, MessageBatch as RsMessage, Content};
+use crate::{Error, MessageBatch, Content};
 use crate::processor::Processor;
 
 /// Protobuf格式转换处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtobufProcessorConfig {
-    /// 转换模式: "to_arrow" 或 "from_arrow"
-    pub mode: String,
-
     /// Protobuf消息类型描述符文件路径
     pub proto_directory: String,
 
@@ -42,11 +40,6 @@ pub struct ProtobufProcessor {
 impl ProtobufProcessor {
     /// 创建一个新的Protobuf格式转换处理器
     pub fn new(config: &ProtobufProcessorConfig) -> Result<Self, Error> {
-        match config.mode.as_str() {
-            "to_arrow" | "from_arrow" => {}
-            _ => return Err(Error::Config(format!("不支持的转换模式: {}", config.mode))),
-        }
-
         info!("{}", &config.proto_directory);
 
         // 检查文件扩展名，判断是proto文件还是二进制描述符文件
@@ -273,56 +266,47 @@ impl ProtobufProcessor {
     }
 }
 
-//
-// #[async_trait]
-// impl Processor for ProtobufProcessor {
-//     async fn process(&self, msg: RsMessage) -> Result<Vec<RsMessage>, Error> {
-//         match self.config.mode.as_str() {
-//             "to_arrow" => {
-//                 // 将Arrow格式转换为Protobuf
-//                 match &msg.content {
-//                     Content::Arrow(_) => {
-//                         Ok(vec![msg])
-//                     }
-//                     Content::Binary(v) => {
-//                         // 将Protobuf消息转换为Arrow格式
-//                         let batch = self.protobuf_to_arrow(v)?;
-//
-//                         // 创建新消息，保留原始元数据
-//                         let mut new_msg = RsMessage::new_arrow(batch);
-//
-//                         Ok(vec![new_msg])
-//                     }
-//                 }
-//             }
-//             "from_arrow" => {
-//                 match &msg.content {
-//                     Content::Arrow(batch) => {
-//                         // 将Arrow格式转换为Protobuf
-//                         let proto_data = self.arrow_to_protobuf(batch)?;
-//
-//                         // 创建新消息，保留原始元数据
-//                         let mut new_msg = RsMessage::new_binary(proto_data);
-//                         *new_msg.metadata_mut() = msg.metadata().clone();
-//
-//                         Ok(vec![new_msg])
-//                     }
-//                     Content::Binary(_) => {
-//                         Ok(vec![msg])
-//                     }
-//                 }
-//             }
-//             _ => {
-//                 Err(Error::Processing("无效的转换模式".to_string()))
-//             }
-//         }
-//     }
-//
-//     async fn close(&self) -> Result<(), Error> {
-//         // 无需特殊清理
-//         Ok(())
-//     }
-// }
+
+#[async_trait]
+impl Processor for ProtobufProcessor {
+    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
+        if msg.is_empty() {
+            return Ok(vec![]);
+        }
+        match msg.content {
+            Content::Arrow(v) => {
+                // 将Arrow格式转换为Protobuf
+                let proto_data = self.arrow_to_protobuf(&v)?;
+
+                // 创建新消息，保留原始元数据
+                let new_msg = MessageBatch::new_binary(vec![proto_data]);
+
+                Ok(vec![new_msg])
+            }
+            Content::Binary(v) => {
+                if v.is_empty() {
+                    return Ok(vec![]);
+                }
+                let mut batches = Vec::with_capacity(v.len());
+                for x in v {
+                    // 将Protobuf消息转换为Arrow格式
+                    let batch = self.protobuf_to_arrow(&x)?;
+                    batches.push(batch)
+                }
+
+                let schema = batches[0].schema();
+                let batch = arrow::compute::concat_batches(&schema, &batches)
+                    .map_err(|e| Error::Processing(format!("合并批次失败: {}", e)))?;
+                Ok(vec![MessageBatch::new_arrow(batch)])
+            }
+        }
+    }
+
+    async fn close(&self) -> Result<(), Error> {
+        // 无需特殊清理
+        Ok(())
+    }
+}
 
 fn list_files_in_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<String>> {
     let mut files = Vec::new();
