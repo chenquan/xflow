@@ -25,8 +25,8 @@ use crate::processor::Processor;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProtobufProcessorConfig {
     /// Protobuf消息类型描述符文件路径
-    pub proto_directory: String,
-
+    pub proto_inputs: Vec<String>,
+    pub proto_includes: Option<Vec<String>>,
     /// Protobuf消息类型名称
     pub message_type: String,
 }
@@ -40,10 +40,9 @@ pub struct ProtobufProcessor {
 impl ProtobufProcessor {
     /// 创建一个新的Protobuf格式转换处理器
     pub fn new(config: &ProtobufProcessorConfig) -> Result<Self, Error> {
-        info!("{}", &config.proto_directory);
 
         // 检查文件扩展名，判断是proto文件还是二进制描述符文件
-        let file_descriptor_set = Self::parse_proto_file(&config.proto_directory)?;
+        let file_descriptor_set = Self::parse_proto_file(&config)?;
 
         let descriptor_pool = prost_reflect::DescriptorPool::from_file_descriptor_set(file_descriptor_set)
             .map_err(|e| Error::Config(format!("无法创建Protobuf描述符池: {}", e)))?;
@@ -58,16 +57,23 @@ impl ProtobufProcessor {
     }
 
     /// 从.proto文件解析并生成FileDescriptorSet
-    fn parse_proto_file(proto_dir: &str) -> Result<FileDescriptorSet, Error> {
-        let files_in_dir_result = list_files_in_dir(proto_dir);
+    fn parse_proto_file(c: &&ProtobufProcessorConfig) -> Result<FileDescriptorSet, Error> {
+        let mut proto_inputs: Vec<String> = vec![];
+        for x in &c.proto_inputs {
+            let files_in_dir_result = list_files_in_dir(x).map_err(|e| Error::Config(format!("列出proto文件失败: {}", e)))?;
+            proto_inputs.extend(
+                files_in_dir_result.iter()
+                    .filter(|path| path.ends_with(".proto"))
+                    .map(|path| x.to_string() + path).collect::<Vec<_>>()
+            )
+        }
+        let proto_includes = c.proto_includes.clone().unwrap_or(c.proto_inputs.clone());
 
-        let files_in_dir = files_in_dir_result.map_err(|e| Error::Config(format!("列出proto文件失败: {}", e)))?;
-        let files_in_dir: Vec<_> = files_in_dir.iter().filter(|path| path.ends_with(".proto")).map(|path| proto_dir.to_string() + path).collect();
         // 使用protobuf_parse库解析proto文件
         let file_descriptor_protos = protobuf_parse::Parser::new()
             .pure()
-            .inputs(files_in_dir)
-            .include(proto_dir)
+            .inputs(proto_inputs)
+            .includes(proto_includes)
             .parse_and_typecheck()
             .map_err(|e| Error::Config(format!("解析proto文件失败: {}", e)))?
             .file_descriptors;
