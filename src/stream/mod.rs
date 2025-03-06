@@ -59,13 +59,16 @@ impl Stream {
                     match input_receiver.recv_async().await {
                         Ok((msg, ack)) => {
                             // 通过管道处理消息
-                            debug!("Processing input message: {:?}", &msg);
+                            debug!("Processing input message: {:?}", &msg.as_string());
                             let processed = pipeline.process(msg).await;
-                            info!("Processing end");
 
                             // 处理结果消息
                             match processed {
                                 Ok(msgs) => {
+                                    for x in &msgs {
+                                        debug!("Processing output message: {:?}",x.as_string());
+                                    }
+
                                     if let Err(e) = output_sender.send_async((msgs, ack)).await {
                                         error!("Failed to send processed message: {}", e);
                                         break;
@@ -90,7 +93,7 @@ impl Stream {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-                        debug!("Received input message: {:?}",&msg.0);
+                        debug!("Received input message: {:?}",&msg.0.as_string());
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
                             break;

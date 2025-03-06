@@ -32,7 +32,7 @@ pub enum ProcessorConfig {
     // Batch(batch::BatchProcessorConfig),
     Sql(sql::SqlProcessorConfig),
     Json(json::JsonProcessorConfig),
-    // Protobuf(protobuf::ProtobufProcessorConfig),
+    Protobuf(protobuf::ProtobufProcessorConfig),
 }
 
 impl ProcessorConfig {
@@ -42,7 +42,7 @@ impl ProcessorConfig {
             // ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
             ProcessorConfig::Json(config) => Ok(Arc::new(json::JsonProcessor::new(config)?)),
-            // ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
+            ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
         }
     }
 }
