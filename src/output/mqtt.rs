@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use tracing::info;
-use crate::{Error, Message, output::Output};
+use crate::{Error, MessageBatch, output::Output};
 
 /// MQTT输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,7 +109,7 @@ impl Output for MqttOutput {
         Ok(())
     }
 
-    async fn write(&self, msg: &Message) -> Result<(), Error> {
+    async fn write(&self, msg: &MessageBatch) -> Result<(), Error> {
         if !self.connected.load(Ordering::SeqCst) {
             return Err(Error::Connection("输出未连接".to_string()));
         }
@@ -119,7 +119,7 @@ impl Output for MqttOutput {
         let client = client_guard.as_ref().ok_or_else(|| Error::Connection("MQTT客户端未初始化".to_string()))?;
 
         // 获取消息内容
-        let payload = match msg.content() {
+        let payloads = match msg.as_string() {
             Ok(v) => {
                 v.to_vec()
             }
@@ -128,22 +128,24 @@ impl Output for MqttOutput {
             }
         };
 
-        info!("Send message: {}", &String::from_utf8_lossy(&payload));
+        for payload in payloads {
+            info!("Send message: {}", &String::from_utf8_lossy((&payload).as_ref()));
 
-        // 确定QoS级别
-        let qos_level = match self.config.qos {
-            Some(0) => QoS::AtMostOnce,
-            Some(1) => QoS::AtLeastOnce,
-            Some(2) => QoS::ExactlyOnce,
-            _ => QoS::AtLeastOnce, // 默认为QoS 1
-        };
+            // 确定QoS级别
+            let qos_level = match self.config.qos {
+                Some(0) => QoS::AtMostOnce,
+                Some(1) => QoS::AtLeastOnce,
+                Some(2) => QoS::ExactlyOnce,
+                _ => QoS::AtLeastOnce, // 默认为QoS 1
+            };
 
-        // 确定是否保留消息
-        let retain = self.config.retain.unwrap_or(false);
+            // 确定是否保留消息
+            let retain = self.config.retain.unwrap_or(false);
 
-        // 发布消息
-        client.publish(&self.config.topic, qos_level, retain, payload).await
-            .map_err(|e| Error::Processing(format!("MQTT发布失败: {}", e)))?;
+            // 发布消息
+            client.publish(&self.config.topic, qos_level, retain, payload).await
+                .map_err(|e| Error::Processing(format!("MQTT发布失败: {}", e)))?;
+        }
 
         Ok(())
     }

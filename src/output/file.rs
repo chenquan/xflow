@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use crate::{Error, Message, output::Output};
+use crate::{Error, MessageBatch, output::Output};
 
 /// 文件输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,7 +69,7 @@ impl Output for FileOutput {
         Ok(())
     }
 
-    async fn write(&self, msg: &Message) -> Result<(), Error> {
+    async fn write(&self, msg: &MessageBatch) -> Result<(), Error> {
         let writer_arc = self.writer.clone();
         let writer_arc_guard = writer_arc.lock().await;
         if !self.connected.load(Ordering::SeqCst) || writer_arc_guard.is_none() {
@@ -80,11 +80,14 @@ impl Output for FileOutput {
         let writer = writer_arc_guard.as_ref();
         let mut file = writer.ok_or(Error::Connection("输出未连接".to_string()))?;
 
-        if self.config.append_newline.unwrap_or(true) {
-            writeln!(file, "{}", content).map_err(Error::Io)?
-        } else {
-            write!(file, "{}", content).map_err(Error::Io)?
+        for x in content {
+            if self.config.append_newline.unwrap_or(true) {
+                writeln!(file, "{}", x).map_err(Error::Io)?
+            } else {
+                write!(file, "{}", x).map_err(Error::Io)?
+            }
         }
+
 
         file.flush().map_err(Error::Io)?;
         Ok(())

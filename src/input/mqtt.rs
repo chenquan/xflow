@@ -13,7 +13,7 @@ use std::sync::Arc;
 use flume::{Receiver, RecvError, SendError, Sender};
 use tokio::sync::Mutex;
 use tracing::{error, info};
-use crate::{input::Input, Content, Error, Message};
+use crate::{input::Input, Content, Error, MessageBatch};
 use crate::input::Ack;
 
 /// MQTT输入配置
@@ -151,7 +151,7 @@ impl Input for MqttInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
+    async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
         if !self.connected.load(Ordering::SeqCst) {
             return Err(Error::Connection("输入未连接".to_string()));
         }
@@ -160,7 +160,7 @@ impl Input for MqttInput {
         match self.receiver.recv() {
             Ok(publish) => {
                 let payload = publish.payload.to_vec();
-                let msg = Message::new_binary(payload);
+                let msg = MessageBatch::new_binary(vec![payload]);
                 Ok((msg, Arc::new(MqttAck {
                     client: self.client.clone(),
                     publish,

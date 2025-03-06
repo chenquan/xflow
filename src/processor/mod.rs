@@ -4,9 +4,10 @@
 
 use std::sync::Arc;
 use async_trait::async_trait;
+use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, MessageBatch};
+use crate::{Error, MessageBatch};
 
 pub mod batch;
 pub mod protobuf;
@@ -17,39 +18,12 @@ pub mod json;
 #[async_trait]
 pub trait Processor: Send + Sync {
     /// 处理消息
-    async fn process(&self, msg: Message) -> Result<Vec<Message>, Error>;
+    async fn process(&self, batch: MessageBatch) -> Result<Vec<MessageBatch>, Error>;
 
     /// 关闭处理器
     async fn close(&self) -> Result<(), Error>;
 }
 
-#[async_trait]
-pub trait ProcessorBatch: Send + Sync {
-    /// 处理消息批次
-    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error>;
-
-    /// 关闭处理器
-    async fn close(&self) -> Result<(), Error>;
-}
-
-#[async_trait]
-impl<T> ProcessorBatch for T
-where
-    T: Processor,
-{
-    async fn process(&self, msg: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
-        let mut vec: Vec<MessageBatch> = vec![];
-        for x in msg.0 {
-            vec.push(self.process(x).await?.into())
-        }
-        Ok(vec.into())
-    }
-
-
-    async fn close(&self) -> Result<(), Error> {
-        self.close().await
-    }
-}
 
 /// 处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,17 +32,17 @@ pub enum ProcessorConfig {
     // Batch(batch::BatchProcessorConfig),
     Sql(sql::SqlProcessorConfig),
     Json(json::JsonProcessorConfig),
-    Protobuf(protobuf::ProtobufProcessorConfig),
+    // Protobuf(protobuf::ProtobufProcessorConfig),
 }
 
 impl ProcessorConfig {
     /// 根据配置构建处理器组件
-    pub fn build(&self) -> Result<Arc<dyn ProcessorBatch>, Error> {
+    pub fn build(&self) -> Result<Arc<dyn Processor>, Error> {
         match self {
             // ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
             ProcessorConfig::Json(config) => Ok(Arc::new(json::JsonProcessor::new(config)?)),
-            ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
+            // ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
         }
     }
 }

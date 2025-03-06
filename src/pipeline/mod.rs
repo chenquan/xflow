@@ -6,17 +6,16 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, processor::Processor, MessageBatch};
-use crate::processor::ProcessorBatch;
+use crate::{Error, MessageBatch, processor::Processor,  };
 
 /// 管道结构体，包含一系列处理器
 pub struct Pipeline {
-    processors: Vec<Arc<dyn ProcessorBatch>>,
+    processors: Vec<Arc<dyn Processor>>,
 }
 
 impl Pipeline {
     /// 创建一个新的管道
-    pub fn new(processors: Vec<Arc<dyn ProcessorBatch>>) -> Self {
+    pub fn new(processors: Vec<Arc<dyn Processor>>) -> Self {
         Self { processors }
     }
 

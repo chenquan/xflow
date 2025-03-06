@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, buffer::Buffer};
+use crate::{Error, MessageBatch, buffer::Buffer};
 //
 // /// 内存缓冲区配置
 // #[derive(Debug, Clone, Serialize, Deserialize)]

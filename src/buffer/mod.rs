@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message};
+use crate::{Error, MessageBatch};
 
 pub mod memory;
 pub mod disk;
@@ -16,10 +16,10 @@ pub mod redis;
 #[async_trait]
 pub trait Buffer: Send + Sync {
     /// 将消息推入缓冲区
-    async fn push(&self, msg: &Message) -> Result<(), Error>;
+    async fn push(&self, msg: &MessageBatch) -> Result<(), Error>;
 
     /// 从缓冲区弹出消息
-    async fn pop(&self) -> Result<Option<Message>, Error>;
+    async fn pop(&self) -> Result<Option<MessageBatch>, Error>;
 
     /// 关闭缓冲区
     async fn close(&self) -> Result<(), Error>;

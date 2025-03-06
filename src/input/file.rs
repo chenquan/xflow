@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, input::Input};
+use crate::{Error, MessageBatch, input::Input};
 use crate::input::{Ack, NoopAck};
 
 /// 文件输入配置
@@ -72,7 +72,7 @@ impl Input for FileInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
+    async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
         let reader_arc = self.reader.clone();
         let mut reader_mutex = reader_arc.lock().await;
         if !self.connected.load(Ordering::SeqCst) || reader_mutex.is_none() {
@@ -119,7 +119,7 @@ impl Input for FileInput {
             }
         }
 
-        Ok((Message::from_string(&line), Arc::new(NoopAck)))
+        Ok((MessageBatch::from_string(&line), Arc::new(NoopAck)))
     }
 
 

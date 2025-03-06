@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use axum::{Router, routing::post, extract::State, http::StatusCode};
 
-use crate::{Error, Message, input::Input};
+use crate::{Error, MessageBatch, input::Input};
 use crate::input::{Ack, NoopAck};
 
 /// HTTP输入配置
@@ -28,13 +28,13 @@ pub struct HttpInputConfig {
 /// HTTP输入组件
 pub struct HttpInput {
     config: HttpInputConfig,
-    queue: Arc<Mutex<VecDeque<Message>>>,
+    queue: Arc<Mutex<VecDeque<MessageBatch>>>,
     server_handle: Arc<Mutex<Option<tokio::task::JoinHandle<Result<(), Error>>>>>,
     connected: AtomicBool,
 }
 
 /// 共享状态
-type AppState = Arc<Mutex<VecDeque<Message>>>;
+type AppState = Arc<Mutex<VecDeque<MessageBatch>>>;
 
 impl HttpInput {
     /// 创建一个新的HTTP输入组件
@@ -49,7 +49,7 @@ impl HttpInput {
 
     /// 处理HTTP请求
     async fn handle_request(State(state): State<AppState>, body: axum::extract::Json<serde_json::Value>) -> StatusCode {
-        let msg = match Message::from_json(&body.0) {
+        let msg = match MessageBatch::from_json(&body.0) {
             Ok(msg) => msg,
             Err(_) => return StatusCode::BAD_REQUEST,
         };
@@ -97,7 +97,7 @@ impl Input for HttpInput {
         Ok(())
     }
 
-    async fn read(&self) -> Result<(Message, Arc<dyn Ack>), Error> {
+    async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
         if !self.connected.load(Ordering::SeqCst) {
             return Err(Error::Connection("输入未连接".to_string()));
         }

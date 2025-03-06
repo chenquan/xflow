@@ -6,7 +6,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use crate::{Error, Message, processor::Processor};
+use crate::{Error, MessageBatch, processor::Processor};
 
 /// 批处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +22,7 @@ pub struct BatchProcessorConfig {
 /// 批处理器组件
 pub struct BatchProcessor {
     config: BatchProcessorConfig,
-    batch: Arc<Mutex<Vec<Message>>>,
+    batch: Arc<Mutex<Vec<MessageBatch>>>,
     last_batch_time: Arc<Mutex<std::time::Instant>>,
 }
 
