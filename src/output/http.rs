@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use reqwest::{Client, header};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use crate::{Error, Message, output::Output};
+use crate::{Error, MessageBatch, output::Output};
 
 /// HTTP输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

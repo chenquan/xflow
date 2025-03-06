@@ -7,9 +7,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
+use datafusion::arrow;
+use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, output::Output};
+use crate::{Error, MessageBatch, output::Output, Content, Bytes};
 
 /// 标准输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +24,6 @@ pub struct StdoutOutputConfig {
 pub struct StdoutOutput {
     config: StdoutOutputConfig,
     writer: Mutex<io::Stdout>,
-    connected: AtomicBool,
 }
 
 impl StdoutOutput {
@@ -31,7 +32,6 @@ impl StdoutOutput {
         Ok(Self {
             config: config.clone(),
             writer: Mutex::new(io::stdout()),
-            connected: AtomicBool::new(false),
         })
     }
 }
@@ -39,30 +39,56 @@ impl StdoutOutput {
 #[async_trait]
 impl Output for StdoutOutput {
     async fn connect(&self) -> Result<(), Error> {
-        self.connected.store(true, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 
-    async fn write(&self, msg: &Message) -> Result<(), Error> {
-        if !self.connected.load(std::sync::atomic::Ordering::SeqCst) {
-            return Err(Error::Connection("输出未连接".to_string()));
+    async fn write(&self, batch: &MessageBatch) -> Result<(), Error> {
+        match &batch.content {
+            Content::Arrow(v) => {
+                self.arrow_stdout(&v)
+            }
+            Content::Binary(v) => {
+                self.binary_stdout(&v)
+            }
         }
-
-        let content = msg.as_string()?;
-        let mut writer = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
-
-        if self.config.append_newline.unwrap_or(true) {
-            writeln!(writer, "{}", content).map_err(Error::Io)?
-        } else {
-            write!(writer, "{}", content).map_err(Error::Io)?
-        }
-
-        writer.flush().map_err(Error::Io)?;
-        Ok(())
     }
+
 
     async fn close(&self) -> Result<(), Error> {
-        self.connected.store(false, std::sync::atomic::Ordering::SeqCst);
+        Ok(())
+    }
+}
+impl StdoutOutput {
+    pub fn arrow_stdout(&self, msg: &RecordBatch) -> Result<(), Error> {
+        let mut writer_std = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
+
+        // 使用Arrow的JSON序列化功能
+        let mut buf = Vec::new();
+        let mut writer = arrow::json::ArrayWriter::new(&mut buf);
+        writer.write(msg)
+            .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
+        writer.finish()
+            .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
+        let string = String::from_utf8_lossy(&buf);
+
+        if self.config.append_newline.unwrap_or(true) {
+            writeln!(writer_std, "{}", string).map_err(Error::Io)?
+        } else {
+            write!(writer_std, "{}", string).map_err(Error::Io)?
+        }
+
+        writer_std.flush().map_err(Error::Io)?;
+        Ok(())
+    }
+    pub fn binary_stdout(&self, msg: &[Bytes]) -> Result<(), Error> {
+        let mut writer_std = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
+        for x in msg {
+            if self.config.append_newline.unwrap_or(true) {
+                writeln!(writer_std, "{}", String::from_utf8_lossy(&x)).map_err(Error::Io)?
+            } else {
+                write!(writer_std, "{}", String::from_utf8_lossy(&x)).map_err(Error::Io)?
+            }
+        }
         Ok(())
     }
 }

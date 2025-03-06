@@ -11,15 +11,12 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::arrow;
 use serde_json::Value;
 
-use crate::{Error, Message, Content, MessageBatch};
-use crate::processor::{ProcessorBatch};
+use crate::{Error, MessageBatch, Content, Bytes};
+use crate::processor::Processor;
 
 /// Arrow格式转换处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonProcessorConfig {
-    /// 转换模式: "to_arrow" 或 "from_arrow"
-    pub mode: String,
-}
+pub struct JsonProcessorConfig {}
 
 /// Arrow格式转换处理器
 pub struct JsonProcessor {
@@ -29,21 +26,15 @@ pub struct JsonProcessor {
 impl JsonProcessor {
     /// 创建一个新的Arrow格式转换处理器
     pub fn new(config: &JsonProcessorConfig) -> Result<Self, Error> {
-        // 验证配置
-        match config.mode.as_str() {
-            "to_arrow" | "from_arrow" => {}
-            _ => return Err(Error::Config(format!("不支持的转换模式: {}", config.mode))),
-        }
-
         Ok(Self {
             config: config.clone(),
         })
     }
 
     /// 将JSON转换为Arrow格式
-    fn json_to_arrow(&self, content: &str) -> Result<RecordBatch, Error> {
+    fn json_to_arrow(&self, content: &Bytes) -> Result<RecordBatch, Error> {
         // 解析JSON内容
-        let json_value: Value = serde_json::from_str(content)
+        let json_value: Value = serde_json::from_slice(content)
             .map_err(|e| Error::Processing(format!("JSON解析错误: {}", e)))?;
 
         match json_value {
@@ -121,57 +112,31 @@ impl JsonProcessor {
         Ok(buf)
     }
 }
+
 #[async_trait]
-impl ProcessorBatch for JsonProcessor {
+impl Processor for JsonProcessor {
     async fn process(&self, msg_batch: MessageBatch) -> Result<Vec<MessageBatch>, Error> {
-        let mut new_msg_batch = vec![];
-        for msg in msg_batch.0 {
-            match self.config.mode.as_str() {
-                "to_arrow" => {
-                    // 将二进制/JSON数据转换为Arrow格式
-                    match &msg.content {
-                        Content::Arrow(_) => {
-                            // 已经是Arrow格式，直接返回
-                            new_msg_batch.push(msg);
-                        }
-                        Content::Binary(data) => {
-                            // 尝试将二进制数据解析为JSON，然后转换为Arrow
-                            let json_str = String::from_utf8(data.clone())
-                                .map_err(|e| Error::Processing(format!("无效的UTF-8序列: {}", e)))?;
-
-                            let arrow_batch = self.json_to_arrow(&json_str)?;
-
-                            // 创建新消息，保留原始元数据
-                            let mut new_msg = Message::new_arrow(arrow_batch);
-                            *new_msg.metadata_mut() = msg.metadata().clone();
-                            new_msg_batch.push(new_msg);
-                        }
-                    }
+        match msg_batch.content {
+            Content::Arrow(v) => {
+                let json_data = self.arrow_to_json(&v)?;
+                Ok(vec![MessageBatch::new_binary(vec![json_data])])
+            }
+            Content::Binary(v) => {
+                let mut batches = Vec::with_capacity(v.len());
+                for x in v {
+                    let record_batch = self.json_to_arrow(&x)?;
+                    batches.push(record_batch)
                 }
-                "from_arrow" => {
-                    // 将Arrow格式转换为JSON
-                    match &msg.content {
-                        Content::Arrow(batch) => {
-                            let json_data = self.arrow_to_json(batch)?;
-
-                            // 创建新消息，保留原始元数据
-                            let mut new_msg = Message::new_binary(json_data);
-                            *new_msg.metadata_mut() = msg.metadata().clone();
-
-                            new_msg_batch.push(new_msg);
-                        }
-                        Content::Binary(_) => {
-                            // 已经是二进制格式，直接返回
-                            new_msg_batch.push(msg);
-                        }
-                    }
+                if batches.is_empty() {
+                    return Ok(vec![]);
                 }
-                _ => {
-                    return Err(Error::Processing(format!("无效的转换模式: {}", self.config.mode)));
-                }
-            };
+
+                let schema = batches[0].schema();
+                let batch = arrow::compute::concat_batches(&schema, &batches)
+                    .map_err(|e| Error::Processing(format!("合并批次失败: {}", e)))?;
+                Ok(vec![MessageBatch::new_arrow(batch)])
+            }
         }
-        Ok(vec![new_msg_batch.into()])
     }
 
     async fn close(&self) -> Result<(), Error> {
@@ -179,12 +144,3 @@ impl ProcessorBatch for JsonProcessor {
     }
 }
 
-// #[async_trait]
-// impl Processor for JsonProcessor {
-//     async fn process(&self, msg: Message) -> Result<Vec<Message>, Error> {}
-//
-//     async fn close(&self) -> Result<(), Error> {
-//         // 无需特殊清理
-//         Ok(())
-//     }
-// }

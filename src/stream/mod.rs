@@ -6,15 +6,14 @@ use std::sync::Arc;
 use flume::RecvError;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
-use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, Message, MessageBatch};
-use crate::input::{Ack, InputBatch};
-use crate::output::OutputBatch;
+use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
+use crate::input::{Ack};
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
 pub struct Stream {
-    input: Arc<dyn InputBatch>,
+    input: Arc<dyn Input>,
     pipeline: Arc<Pipeline>,
-    output: Arc<dyn OutputBatch>,
+    output: Arc<dyn Output>,
     buffer: Option<Arc<dyn Buffer>>,
     thread_num: i32,
 }
@@ -22,9 +21,9 @@ pub struct Stream {
 impl Stream {
     /// 创建一个新的流
     pub fn new(
-        input: Arc<dyn InputBatch>,
+        input: Arc<dyn Input>,
         pipeline: Pipeline,
-        output: Arc<dyn OutputBatch>,
+        output: Arc<dyn Output>,
         buffer: Option<Arc<dyn Buffer>>,
         thread_num: i32,
     ) -> Self {
@@ -60,7 +59,7 @@ impl Stream {
                     match input_receiver.recv_async().await {
                         Ok((msg, ack)) => {
                             // 通过管道处理消息
-                            debug!("Processing input message: {}", &msg);
+                            debug!("Processing input message: {:?}", &msg);
                             let processed = pipeline.process(msg).await;
                             info!("Processing end");
 
@@ -91,7 +90,7 @@ impl Stream {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-                        debug!("Received input message: {}",&msg.0);
+                        debug!("Received input message: {:?}",&msg.0);
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
                             break;

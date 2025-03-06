@@ -17,7 +17,7 @@ use prost_reflect::prost_types::FileDescriptorSet;
 
 use protobuf::Message as ProtobufMessage;
 use tracing::info;
-use crate::{Error, Message as RsMessage, Content};
+use crate::{Error, MessageBatch as RsMessage, Content};
 use crate::processor::Processor;
 
 /// Protobuf格式转换处理器配置
@@ -273,56 +273,56 @@ impl ProtobufProcessor {
     }
 }
 
-#[async_trait]
-impl Processor for ProtobufProcessor {
-    async fn process(&self, msg: RsMessage) -> Result<Vec<RsMessage>, Error> {
-        match self.config.mode.as_str() {
-            "to_arrow" => {
-                // 将Arrow格式转换为Protobuf
-                match &msg.content {
-                    Content::Arrow(_) => {
-                        Ok(vec![msg])
-                    }
-                    Content::Binary(v) => {
-                        // 将Protobuf消息转换为Arrow格式
-                        let batch = self.protobuf_to_arrow(v)?;
-
-                        // 创建新消息，保留原始元数据
-                        let mut new_msg = RsMessage::new_arrow(batch);
-                        *new_msg.metadata_mut() = msg.metadata().clone();
-
-                        Ok(vec![new_msg])
-                    }
-                }
-            }
-            "from_arrow" => {
-                match &msg.content {
-                    Content::Arrow(batch) => {
-                        // 将Arrow格式转换为Protobuf
-                        let proto_data = self.arrow_to_protobuf(batch)?;
-
-                        // 创建新消息，保留原始元数据
-                        let mut new_msg = RsMessage::new_binary(proto_data);
-                        *new_msg.metadata_mut() = msg.metadata().clone();
-
-                        Ok(vec![new_msg])
-                    }
-                    Content::Binary(_) => {
-                        Ok(vec![msg])
-                    }
-                }
-            }
-            _ => {
-                Err(Error::Processing("无效的转换模式".to_string()))
-            }
-        }
-    }
-
-    async fn close(&self) -> Result<(), Error> {
-        // 无需特殊清理
-        Ok(())
-    }
-}
+//
+// #[async_trait]
+// impl Processor for ProtobufProcessor {
+//     async fn process(&self, msg: RsMessage) -> Result<Vec<RsMessage>, Error> {
+//         match self.config.mode.as_str() {
+//             "to_arrow" => {
+//                 // 将Arrow格式转换为Protobuf
+//                 match &msg.content {
+//                     Content::Arrow(_) => {
+//                         Ok(vec![msg])
+//                     }
+//                     Content::Binary(v) => {
+//                         // 将Protobuf消息转换为Arrow格式
+//                         let batch = self.protobuf_to_arrow(v)?;
+//
+//                         // 创建新消息，保留原始元数据
+//                         let mut new_msg = RsMessage::new_arrow(batch);
+//
+//                         Ok(vec![new_msg])
+//                     }
+//                 }
+//             }
+//             "from_arrow" => {
+//                 match &msg.content {
+//                     Content::Arrow(batch) => {
+//                         // 将Arrow格式转换为Protobuf
+//                         let proto_data = self.arrow_to_protobuf(batch)?;
+//
+//                         // 创建新消息，保留原始元数据
+//                         let mut new_msg = RsMessage::new_binary(proto_data);
+//                         *new_msg.metadata_mut() = msg.metadata().clone();
+//
+//                         Ok(vec![new_msg])
+//                     }
+//                     Content::Binary(_) => {
+//                         Ok(vec![msg])
+//                     }
+//                 }
+//             }
+//             _ => {
+//                 Err(Error::Processing("无效的转换模式".to_string()))
+//             }
+//         }
+//     }
+//
+//     async fn close(&self) -> Result<(), Error> {
+//         // 无需特殊清理
+//         Ok(())
+//     }
+// }
 
 fn list_files_in_dir<P: AsRef<Path>>(dir: P) -> io::Result<Vec<String>> {
     let mut files = Vec::new();

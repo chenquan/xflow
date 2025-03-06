@@ -2,9 +2,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::time::Duration;
 use async_trait::async_trait;
+use datafusion::arrow::array::{ArrayRef, RecordBatch, StringArray};
+use datafusion::arrow::datatypes::{DataType, Field, Schema};
+use datafusion::functions::strings::StringArrayBuilder;
 use serde::{Deserialize, Deserializer, Serialize};
-use crate::{Error, Message, MessageBatch};
-use crate::input::{Ack, InputBatch, NoopAck};
+use crate::{Error, MessageBatch};
+use crate::input::{Ack, Input, NoopAck};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateConfig {
@@ -29,7 +32,7 @@ impl GenerateInput {
 }
 
 #[async_trait]
-impl InputBatch for GenerateInput {
+impl Input for GenerateInput {
     async fn connect(&self) -> Result<(), Error> {
         Ok(())
     }
@@ -44,11 +47,13 @@ impl InputBatch for GenerateInput {
         }
         let mut msgs = Vec::with_capacity(self.batch_size);
         for _ in 0..self.batch_size {
-            msgs.push(Message::from_string(&self.config.context.clone()))
+            let s = self.config.context.clone();
+            msgs.push(s.into_bytes())
         }
+
         self.count.fetch_add(self.batch_size as i64, Ordering::SeqCst);
 
-        Ok((MessageBatch::new(msgs), Arc::new(NoopAck)))
+        Ok((MessageBatch::new_binary(msgs), Arc::new(NoopAck)))
     }
     async fn close(&self) -> Result<(), Error> {
         Ok(())

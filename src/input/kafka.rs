@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Message, input::Input};
+use crate::{Error, MessageBatch, input::Input};
 
 /// Kafka输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
