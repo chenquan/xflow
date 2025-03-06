@@ -6,6 +6,7 @@ use std::fmt::Formatter;
 use std::ops::Deref;
 use datafusion::arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use thiserror::Error;
 
 pub mod buffer;
@@ -84,6 +85,8 @@ pub struct MessageBatch {
     /// 消息内容
     content: Content,
 }
+
+
 #[derive(Clone, Debug)]
 pub enum Content {
     Arrow(RecordBatch),
@@ -95,6 +98,10 @@ impl MessageBatch {
         Self {
             content: Content::Binary(content),
         }
+    }
+    pub fn from_json<T: Serialize>(value: &T) -> Result<Self, Error> {
+        let content = serde_json::to_vec(value)?;
+        Ok(Self::new_binary(vec![content]))
     }
     pub fn new_arrow(content: RecordBatch) -> Self {
         Self {
@@ -115,7 +122,7 @@ impl MessageBatch {
                 Err(Error::Processing("无法解析为JSON".to_string()))
             }
             Content::Binary(v) => {
-                let x : Result<Vec<String>, Error>= v.iter()
+                let x: Result<Vec<String>, Error> = v.iter()
                     .map(|v| String::from_utf8(v.clone())
                         .map_err(|_| Error::Processing("无法解析为字符串".to_string())))
                     .collect();
