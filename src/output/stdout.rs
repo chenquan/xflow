@@ -59,13 +59,13 @@ impl Output for StdoutOutput {
     }
 }
 impl StdoutOutput {
-    pub fn arrow_stdout(&self, msg: &RecordBatch) -> Result<(), Error> {
+    pub fn arrow_stdout(&self, message_batch: &RecordBatch) -> Result<(), Error> {
         let mut writer_std = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
 
         // 使用Arrow的JSON序列化功能
         let mut buf = Vec::new();
         let mut writer = arrow::json::ArrayWriter::new(&mut buf);
-        writer.write(msg)
+        writer.write(message_batch)
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
         writer.finish()
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
