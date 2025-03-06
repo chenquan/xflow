@@ -15,20 +15,14 @@ use crate::{Error, MessageBatch, Content, Bytes};
 use crate::processor::Processor;
 
 /// Arrow格式转换处理器配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonProcessorConfig {}
 
 /// Arrow格式转换处理器
-pub struct JsonProcessor {
-    config: JsonProcessorConfig,
-}
+pub struct JsonProcessor {}
 
 impl JsonProcessor {
     /// 创建一个新的Arrow格式转换处理器
-    pub fn new(config: &JsonProcessorConfig) -> Result<Self, Error> {
-        Ok(Self {
-            config: config.clone(),
-        })
+    pub fn new() -> Result<Self, Error> {
+        Ok(Self {})
     }
 
     /// 将JSON转换为Arrow格式

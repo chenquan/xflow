@@ -31,7 +31,7 @@ pub trait Processor: Send + Sync {
 pub enum ProcessorConfig {
     // Batch(batch::BatchProcessorConfig),
     Sql(sql::SqlProcessorConfig),
-    Json(json::JsonProcessorConfig),
+    Json,
     Protobuf(protobuf::ProtobufProcessorConfig),
 }
 
@@ -41,7 +41,7 @@ impl ProcessorConfig {
         match self {
             // ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
-            ProcessorConfig::Json(config) => Ok(Arc::new(json::JsonProcessor::new(config)?)),
+            ProcessorConfig::Json => Ok(Arc::new(json::JsonProcessor::new()?)),
             ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
         }
     }
