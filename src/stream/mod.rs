@@ -5,7 +5,9 @@
 use crate::input::Ack;
 use crate::{input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
 use std::sync::Arc;
+use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info};
+use waitgroup::WaitGroup;
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
 pub struct Stream {
@@ -37,16 +39,22 @@ impl Stream {
         self.input.connect().await?;
         self.output.connect().await?;
 
+        // 设置信号处理器
+        let mut sigint = signal(SignalKind::interrupt())?;
+        let mut sigterm = signal(SignalKind::terminate())?;
 
         let (input_sender, input_receiver) = flume::bounded::<(MessageBatch, Arc<dyn Ack>)>(1000);
-        let (output_sender, output_receiver) = flume::bounded::<(Vec<MessageBatch>, Arc<dyn Ack>)>(1000);
+        let (output_sender, output_receiver) =
+            flume::bounded::<(Vec<MessageBatch>, Arc<dyn Ack>)>(1000);
         let input = Arc::clone(&self.input);
+
+        let wg = WaitGroup::new();
 
         for i in 0..self.thread_num {
             let pipeline = self.pipeline.clone();
             let input_receiver = input_receiver.clone();
             let output_sender = output_sender.clone();
-
+            let worker = wg.worker();
             tokio::spawn(async move {
                 let i = i + 1;
                 info!("Worker {} started", i);
@@ -61,7 +69,7 @@ impl Stream {
                             match processed {
                                 Ok(msgs) => {
                                     for x in &msgs {
-                                        debug!("Processing output message: {:?}",x.as_string());
+                                        debug!("Processing output message: {:?}", x.as_string());
                                     }
 
                                     if let Err(e) = output_sender.send_async((msgs, ack)).await {
@@ -81,14 +89,19 @@ impl Stream {
                 }
                 drop(output_sender);
                 info!("Worker {} stopped", i);
+                drop(worker);
             });
         }
+
+        let worker = wg.worker();
+
+        let output_arc = self.output.clone();
 
         tokio::spawn(async move {
             loop {
                 match input.read().await {
                     Ok(msg) => {
-                        debug!("Received input message: {:?}",&msg.0.as_string());
+                        debug!("Received input message: {:?}", &msg.0.as_string());
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
                             break;
@@ -101,6 +114,18 @@ impl Stream {
                                 drop(input_sender);
                                 return;
                             }
+                            Error::Disconnection => loop {
+                                match output_arc.connect().await {
+                                    Ok(_) => {
+                                        info!("input reconnected");
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        error!("{}", e);
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                    }
+                                };
+                            },
                             _ => {
                                 error!("{}", e);
                                 // 发生错误时，关闭发送端以通知所有工作线程
@@ -110,45 +135,53 @@ impl Stream {
                     }
                 };
             }
+            drop(worker)
         });
 
         drop(output_sender);
-
         loop {
-            // 通过管道处理消息
-            let msg = match output_receiver.recv_async().await {
-                Ok(msg) => msg,
-                Err(_) => {
-                    // 如果输出通道已关闭，退出循环
-                    return Ok(());
+            tokio::select! {
+                // 监听中断信号
+                _ = sigint.recv() => {
+                    info!("Received SIGINT signal, initiating graceful shutdown");
+                    self.close().await?;
+                    break;
                 }
-            };
+                _ = sigterm.recv() => {
+                    info!("Received SIGTERM signal, initiating graceful shutdown");
+                    self.close().await?;
+                     break;
+                }
+                msg = output_receiver.recv_async() => {
+                    match msg {
+                        Ok(msg) => {
+                            let size = &msg.0.len();
+                            let mut success_cnt = 0;
+                            for x in &msg.0 {
+                                match self.output.write(x).await {
+                                    Ok(_) => {
+                                        success_cnt = success_cnt + 1;
+                                    }
+                                    Err(e) => {
+                                        error!("{}", e);
+                                    }
+                                }
+                            }
 
-            // TODO 如果有缓冲区，从缓冲区读取并写入输出
-            // if let Some(buffer) = &mut self.buffer {
-            //     while let Ok(Some(msg)) = buffer.pop().await {
-            //         self.output.write(&msg).await?
-            //     }
-            // }
-
-            let size = &msg.0.len();
-            let mut success_cnt = 0;
-            for x in &msg.0 {
-                match self.output.write(x).await {
-                    Ok(_) => {
-                        success_cnt = success_cnt + 1;
-                    }
-                    Err(e) => {
-                        error!("{}", e);
+                            // 确认消息已成功处理
+                            if size == &success_cnt {
+                                msg.1.ack().await;
+                            }
+                        }
+                        Err(_) => {
+                        }
                     }
                 }
-            }
-
-            // 确认消息已成功处理
-            if size == &success_cnt {
-                msg.1.ack().await;
             }
         }
+
+        wg.wait();
+        Ok(())
     }
 
     /// 关闭流中的所有组件
@@ -175,7 +208,6 @@ impl StreamConfig {
         let input = self.input.build()?;
         let (pipeline, thread_num) = self.pipeline.build()?;
         let output = self.output.build()?;
-
 
         Ok(Stream::new(input, pipeline, output, thread_num))
     }

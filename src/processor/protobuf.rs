@@ -4,7 +4,10 @@
 
 use async_trait::async_trait;
 use datafusion::arrow;
-use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, UInt32Array, UInt64Array};
+use datafusion::arrow::array::{
+    Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array,
+    StringArray, UInt32Array, UInt64Array,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::parquet::data_type::AsBytes;
@@ -39,14 +42,15 @@ pub struct ProtobufProcessor {
 impl ProtobufProcessor {
     /// 创建一个新的Protobuf格式转换处理器
     pub fn new(config: &ProtobufProcessorConfig) -> Result<Self, Error> {
-
         // 检查文件扩展名，判断是proto文件还是二进制描述符文件
         let file_descriptor_set = Self::parse_proto_file(&config)?;
 
-        let descriptor_pool = prost_reflect::DescriptorPool::from_file_descriptor_set(file_descriptor_set)
-            .map_err(|e| Error::Config(format!("无法创建Protobuf描述符池: {}", e)))?;
+        let descriptor_pool =
+            prost_reflect::DescriptorPool::from_file_descriptor_set(file_descriptor_set)
+                .map_err(|e| Error::Config(format!("无法创建Protobuf描述符池: {}", e)))?;
 
-        let message_descriptor = descriptor_pool.get_message_by_name(&config.message_type)
+        let message_descriptor = descriptor_pool
+            .get_message_by_name(&config.message_type)
             .ok_or_else(|| Error::Config(format!("找不到消息类型: {}", config.message_type)))?;
 
         Ok(Self {
@@ -59,11 +63,14 @@ impl ProtobufProcessor {
     fn parse_proto_file(c: &&ProtobufProcessorConfig) -> Result<FileDescriptorSet, Error> {
         let mut proto_inputs: Vec<String> = vec![];
         for x in &c.proto_inputs {
-            let files_in_dir_result = list_files_in_dir(x).map_err(|e| Error::Config(format!("列出proto文件失败: {}", e)))?;
+            let files_in_dir_result = list_files_in_dir(x)
+                .map_err(|e| Error::Config(format!("列出proto文件失败: {}", e)))?;
             proto_inputs.extend(
-                files_in_dir_result.iter()
+                files_in_dir_result
+                    .iter()
                     .filter(|path| path.ends_with(".proto"))
-                    .map(|path| x.to_string() + path).collect::<Vec<_>>()
+                    .map(|path| x.to_string() + path)
+                    .collect::<Vec<_>>(),
             )
         }
         let proto_includes = c.proto_includes.clone().unwrap_or(c.proto_inputs.clone());
@@ -82,17 +89,18 @@ impl ProtobufProcessor {
         }
 
         // 将FileDescriptorProto转换为FileDescriptorSet
-        let mut file_descriptor_set = prost_reflect::prost_types::FileDescriptorSet {
-            file: Vec::new(),
-        };
+        let mut file_descriptor_set =
+            prost_reflect::prost_types::FileDescriptorSet { file: Vec::new() };
 
         for proto in file_descriptor_protos {
             // 将protobuf库的FileDescriptorProto转换为prost_types的FileDescriptorProto
-            let proto_bytes = proto.write_to_bytes()
+            let proto_bytes = proto
+                .write_to_bytes()
                 .map_err(|e| Error::Config(format!("序列化FileDescriptorProto失败: {}", e)))?;
 
-            let prost_proto = prost_reflect::prost_types::FileDescriptorProto::decode(proto_bytes.as_slice())
-                .map_err(|e| Error::Config(format!("转换FileDescriptorProto失败: {}", e)))?;
+            let prost_proto =
+                prost_reflect::prost_types::FileDescriptorProto::decode(proto_bytes.as_slice())
+                    .map_err(|e| Error::Config(format!("转换FileDescriptorProto失败: {}", e)))?;
 
             file_descriptor_set.file.push(prost_proto);
         }
@@ -161,11 +169,13 @@ impl ProtobufProcessor {
                     columns.push(Arc::new(Int32Array::from(vec![value.clone()])));
                 }
                 _ => {
-                    return Err(Error::Processing(format!("不支持的字段类型: {}", field_name)));
-                }
-                // Value::Message(_) => {}
-                // Value::List(_) => {}
-                // Value::Map(_) => {}
+                    return Err(Error::Processing(format!(
+                        "不支持的字段类型: {}",
+                        field_name
+                    )));
+                } // Value::Message(_) => {}
+                  // Value::List(_) => {}
+                  // Value::Map(_) => {}
             }
         }
 
@@ -185,7 +195,9 @@ impl ProtobufProcessor {
 
         // 确保只有一行数据
         if batch.num_rows() != 1 {
-            return Err(Error::Processing("只支持单行Arrow数据转换为Protobuf".to_string()));
+            return Err(Error::Processing(
+                "只支持单行Arrow数据转换为Protobuf".to_string(),
+            ));
         }
 
         // 遍历所有列，将数据填充到Protobuf消息中
@@ -200,18 +212,23 @@ impl ProtobufProcessor {
                     prost_reflect::Kind::Bool => {
                         if let Some(value) = column.as_any().downcast_ref::<BooleanArray>() {
                             if value.len() > 0 {
-                                proto_msg.set_field_by_name(field_name, Value::Bool(value.value(0)));
+                                proto_msg
+                                    .set_field_by_name(field_name, Value::Bool(value.value(0)));
                             }
                         }
                     }
-                    prost_reflect::Kind::Int32 | prost_reflect::Kind::Sint32 | prost_reflect::Kind::Sfixed32 => {
+                    prost_reflect::Kind::Int32
+                    | prost_reflect::Kind::Sint32
+                    | prost_reflect::Kind::Sfixed32 => {
                         if let Some(value) = column.as_any().downcast_ref::<Int32Array>() {
                             if value.len() > 0 {
                                 proto_msg.set_field_by_name(field_name, Value::I32(value.value(0)));
                             }
                         }
                     }
-                    prost_reflect::Kind::Int64 | prost_reflect::Kind::Sint64 | prost_reflect::Kind::Sfixed64 => {
+                    prost_reflect::Kind::Int64
+                    | prost_reflect::Kind::Sint64
+                    | prost_reflect::Kind::Sfixed64 => {
                         if let Some(value) = column.as_any().downcast_ref::<Int64Array>() {
                             if value.len() > 0 {
                                 proto_msg.set_field_by_name(field_name, Value::I64(value.value(0)));
@@ -249,28 +266,33 @@ impl ProtobufProcessor {
                     prost_reflect::Kind::String => {
                         if let Some(value) = column.as_any().downcast_ref::<StringArray>() {
                             if value.len() > 0 {
-                                proto_msg.set_field_by_name(field_name, Value::String(value.value(0).to_string()));
+                                proto_msg.set_field_by_name(
+                                    field_name,
+                                    Value::String(value.value(0).to_string()),
+                                );
                             }
                         }
                     }
                     // 对于其他类型，可以根据需要添加更多处理
-                    _ => return Err(Error::Processing(format!("不支持的Protobuf类型: {:?}", proto_field.kind()))),
-                    // Kind::Bytes => {}
-                    // Kind::Message(_) => {}
-                    // Kind::Enum(_) => {}
+                    _ => {
+                        return Err(Error::Processing(format!(
+                            "不支持的Protobuf类型: {:?}",
+                            proto_field.kind()
+                        )))
+                    }
                 }
             }
         }
 
         // 编码Protobuf消息
         let mut buf = Vec::new();
-        proto_msg.encode(&mut buf)
+        proto_msg
+            .encode(&mut buf)
             .map_err(|e| Error::Processing(format!("Protobuf编码失败: {}", e)))?;
 
         Ok(buf)
     }
 }
-
 
 #[async_trait]
 impl Processor for ProtobufProcessor {

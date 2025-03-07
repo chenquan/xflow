@@ -34,7 +34,7 @@ pub trait Output: Send + Sync {
 pub enum OutputConfig {
     File(file::FileOutputConfig),
     Http(http::HttpOutputConfig),
-    // Kafka(kafka::KafkaOutputConfig),
+    Kafka(kafka::KafkaOutputConfig),
     Mqtt(mqtt::MqttOutputConfig),
     // Redis(redis::RedisOutputConfig),
     Stdout(stdout::StdoutOutputConfig),
@@ -46,7 +46,7 @@ impl OutputConfig {
         match self {
             OutputConfig::File(config) => Ok(Arc::new(file::FileOutput::new(config)?)),
             OutputConfig::Http(config) => Ok(Arc::new(http::HttpOutput::new(config)?)),
-            // OutputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaOutput::new(config)?)),
+            OutputConfig::Kafka(config) => Ok(Arc::new(kafka::KafkaOutput::new(config)?)),
             OutputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttOutput::new(config)?)),
             // OutputConfig::Redis(config) => Ok(Arc::new(redis::RedisOutput::new(config)?)),
             OutputConfig::Stdout(config) => Ok(Arc::new(stdout::StdoutOutput::new(config)?)),

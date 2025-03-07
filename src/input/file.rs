@@ -52,17 +52,16 @@ impl Input for FileInput {
         let path = Path::new(&self.config.path);
 
         // 打开文件
-        let file = File::open(path).map_err(|e| {
-            Error::Connection(format!("无法打开文件 {}: {}", self.config.path, e))
-        })?;
+        let file = File::open(path)
+            .map_err(|e| Error::Connection(format!("无法打开文件 {}: {}", self.config.path, e)))?;
 
         let mut reader = BufReader::new(file);
 
         // 如果不是从开头开始读取，则移动到文件末尾
         if !self.config.start_from_beginning.unwrap_or(true) {
-            reader.seek(SeekFrom::End(0)).map_err(|e| {
-                Error::Processing(format!("无法定位到文件末尾: {}", e))
-            })?;
+            reader
+                .seek(SeekFrom::End(0))
+                .map_err(|e| Error::Processing(format!("无法定位到文件末尾: {}", e)))?;
         }
 
         let reader_arc = self.reader.clone();
@@ -82,7 +81,6 @@ impl Input for FileInput {
         if self.eof_reached.load(Ordering::SeqCst) && self.config.close_on_eof.unwrap_or(true) {
             return Err(Error::Done);
         }
-
 
         // 使用作用域来限制锁的生命周期
         let bytes_read;
@@ -121,7 +119,6 @@ impl Input for FileInput {
 
         Ok((MessageBatch::from_string(&line), Arc::new(NoopAck)))
     }
-
 
     async fn close(&self) -> Result<(), Error> {
         self.connected.store(false, Ordering::SeqCst);

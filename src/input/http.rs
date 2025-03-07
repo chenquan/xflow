@@ -48,7 +48,10 @@ impl HttpInput {
     }
 
     /// 处理HTTP请求
-    async fn handle_request(State(state): State<AppState>, body: axum::extract::Json<serde_json::Value>) -> StatusCode {
+    async fn handle_request(
+        State(state): State<AppState>,
+        body: axum::extract::Json<serde_json::Value>,
+    ) -> StatusCode {
         let msg = match MessageBatch::from_json(&body.0) {
             Ok(msg) => msg,
             Err(_) => return StatusCode::BAD_REQUEST,
@@ -77,9 +80,9 @@ impl Input for HttpInput {
             .with_state(queue);
 
         // 解析地址
-        let addr: SocketAddr = address.parse().map_err(|e| {
-            Error::Config(format!("无效的地址 {}: {}", address, e))
-        })?;
+        let addr: SocketAddr = address
+            .parse()
+            .map_err(|e| Error::Config(format!("无效的地址 {}: {}", address, e)))?;
 
         // 启动服务器
         let server_handle = tokio::spawn(async move {
@@ -92,7 +95,8 @@ impl Input for HttpInput {
         let server_handle_arc = self.server_handle.clone();
         let mut server_handle_arc_mutex = server_handle_arc.lock().await;
         *server_handle_arc_mutex = Some(server_handle);
-        self.connected.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.connected
+            .store(true, std::sync::atomic::Ordering::SeqCst);
 
         Ok(())
     }
@@ -117,7 +121,6 @@ impl Input for HttpInput {
             Err(Error::Processing("队列为空".to_string()))
         }
     }
-
 
     async fn close(&self) -> Result<(), Error> {
         let mut server_handle_guard = self.server_handle.lock().await;

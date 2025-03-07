@@ -88,7 +88,6 @@ impl Output for FileOutput {
             }
         }
 
-
         file.flush().map_err(Error::Io)?;
         Ok(())
     }

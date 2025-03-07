@@ -2,16 +2,17 @@
 //!
 //! 用于在二进制数据和Arrow格式之间进行转换的处理器
 
+use crate::processor::Processor;
+use crate::{Bytes, Content, Error, MessageBatch};
 use async_trait::async_trait;
 use datafusion::arrow;
-use datafusion::arrow::array::{ArrayRef, BooleanArray, Float64Array, Int64Array, NullArray, StringArray, UInt64Array};
+use datafusion::arrow::array::{
+    ArrayRef, BooleanArray, Float64Array, Int64Array, NullArray, StringArray, UInt64Array,
+};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use serde_json::Value;
 use std::sync::Arc;
-
-use crate::processor::Processor;
-use crate::{Bytes, Content, Error, MessageBatch};
 
 /// Arrow格式转换处理器配置
 
@@ -54,10 +55,13 @@ impl JsonProcessor {
                                 columns.push(Arc::new(Int64Array::from(vec![v.as_i64().unwrap()])));
                             } else if v.is_u64() {
                                 fields.push(Field::new(&key, DataType::UInt64, false));
-                                columns.push(Arc::new(UInt64Array::from(vec![v.as_u64().unwrap()])));
+                                columns
+                                    .push(Arc::new(UInt64Array::from(vec![v.as_u64().unwrap()])));
                             } else {
                                 fields.push(Field::new(&key, DataType::Float64, false));
-                                columns.push(Arc::new(Float64Array::from(vec![v.as_f64().unwrap_or(0.0)])));
+                                columns.push(Arc::new(Float64Array::from(vec![v
+                                    .as_f64()
+                                    .unwrap_or(0.0)])));
                             }
                         }
                         Value::String(v) => {
@@ -97,9 +101,11 @@ impl JsonProcessor {
         // 使用Arrow的JSON序列化功能
         let mut buf = Vec::new();
         let mut writer = arrow::json::ArrayWriter::new(&mut buf);
-        writer.write(batch)
+        writer
+            .write(batch)
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
-        writer.finish()
+        writer
+            .finish()
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
 
         Ok(buf)
@@ -136,4 +142,3 @@ impl Processor for JsonProcessor {
         Ok(())
     }
 }
-

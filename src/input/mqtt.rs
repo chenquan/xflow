@@ -6,12 +6,12 @@ use crate::input::Ack;
 use crate::{input::Input, Error, MessageBatch};
 use async_trait::async_trait;
 use flume::{Receiver, Sender};
-use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
+use rumqttc::{AsyncClient, ConnectionError, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tokio::sync::Mutex;
-use tracing::error;
+use tokio::sync::{broadcast, Mutex};
+use tracing::{error, info};
 
 /// MQTT输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,23 +40,25 @@ pub struct MqttInputConfig {
 pub struct MqttInput {
     config: MqttInputConfig,
     client: Arc<Mutex<Option<AsyncClient>>>,
-    connected: AtomicBool,
-    eventloop_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
-    sender: Arc<Sender<Publish>>,
-    receiver: Arc<Receiver<Publish>>,
+    sender: Arc<Sender<MqttMsg>>,
+    receiver: Arc<Receiver<MqttMsg>>,
+    close_tx: broadcast::Sender<()>,
 }
-
+enum MqttMsg {
+    Publish(Publish),
+    Err(Error),
+}
 impl MqttInput {
     /// 创建一个新的MQTT输入组件
     pub fn new(config: &MqttInputConfig) -> Result<Self, Error> {
-        let (sender, receiver) = flume::bounded::<Publish>(1000);
+        let (sender, receiver) = flume::bounded::<MqttMsg>(1000);
+        let (close_tx, _) = broadcast::channel(1);
         Ok(Self {
             config: config.clone(),
             client: Arc::new(Mutex::new(None)),
-            connected: AtomicBool::new(false),
-            eventloop_handle: Arc::new(Mutex::new(None)),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
+            close_tx,
         })
     }
 }
@@ -64,10 +66,6 @@ impl MqttInput {
 #[async_trait]
 impl Input for MqttInput {
     async fn connect(&self) -> Result<(), Error> {
-        if self.connected.load(Ordering::SeqCst) {
-            return Ok(());
-        }
-
         // 创建MQTT选项
         let mut mqtt_options =
             MqttOptions::new(&self.config.client_id, &self.config.host, self.config.port);
@@ -104,78 +102,94 @@ impl Input for MqttInput {
                 .map_err(|e| Error::Connection(format!("无法订阅MQTT主题 {}: {}", topic, e)))?;
         }
 
-        self.connected.store(true, Ordering::SeqCst);
-
-
         // 保存客户端
         let client_arc = self.client.clone();
         let mut client_guard = client_arc.lock().await;
         *client_guard = Some(client);
 
         // 启动事件循环处理线程
-        let connected = self.connected.load(Ordering::SeqCst);
         let sender_arc = self.sender.clone();
-        let eventloop_handle = tokio::spawn(async move {
-            while connected {
-                match eventloop.poll().await {
-                    Ok(event) => {
-                        if let Event::Incoming(Packet::Publish(publish)) = event {
-
-                            // 将消息添加到队列
-                            match sender_arc.send_async(publish).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    error!("{}",e)
+        let mut rx = self.close_tx.subscribe();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    result = eventloop.poll() => {
+                        match result {
+                            Ok(event) => {
+                                if let Event::Incoming(Packet::Publish(publish)) = event {
+                                    // 将消息添加到队列
+                                    match sender_arc.send_async(MqttMsg::Publish(publish)).await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!("{}",e)
+                                        }
+                                    };
                                 }
-                            };
+                            }
+                            Err(e) => {
+                               // 记录错误并尝试短暂等待后继续
+                                error!("MQTT事件循环错误: {}", e);
+                                match sender_arc.send_async(MqttMsg::Err(Error::Disconnection)).await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!("{}",e)
+                                        }
+                                };
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                            }
                         }
                     }
-                    Err(e) => {
-                        // 记录错误并尝试短暂等待后继续
-                        error!("MQTT事件循环错误: {}", e);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                    _ = rx.recv() => {
+                        break;
                     }
                 }
             }
-            drop(sender_arc);
         });
-
-        // 保存事件循环处理线程句柄
-        let eventloop_handle_arc = self.eventloop_handle.clone();
-        let mut eventloop_handle_guard = eventloop_handle_arc.lock().await;
-        *eventloop_handle_guard = Some(eventloop_handle);
 
         Ok(())
     }
 
     async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
-        if !self.connected.load(Ordering::SeqCst) {
-            return Err(Error::Connection("输入未连接".to_string()));
+        {
+            let client_arc = self.client.clone();
+            if client_arc.lock().await.is_none() {
+                return Err(Error::Disconnection);
+            }
         }
 
-
-        match self.receiver.recv() {
-            Ok(publish) => {
-                let payload = publish.payload.to_vec();
-                let msg = MessageBatch::new_binary(vec![payload]);
-                Ok((msg, Arc::new(MqttAck {
-                    client: self.client.clone(),
-                    publish,
-                })))
-            }
-            Err(_) => {
+        let mut close_rx = self.close_tx.subscribe();
+        tokio::select! {
+            result = self.receiver.recv_async() =>{
+                match result {
+                    Ok(msg) => {
+                        match msg{
+                            MqttMsg::Publish(publish) => {
+                                 let payload = publish.payload.to_vec();
+                            let msg = MessageBatch::new_binary(vec![payload]);
+                            Ok((msg, Arc::new(MqttAck {
+                                client: self.client.clone(),
+                                publish,
+                            })))
+                            },
+                            MqttMsg::Err(e) => {
+                                  Err(e)
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        Err(Error::Done)
+                    }
+                }
+            },
+            _ = close_rx.recv()=>{
                 Err(Error::Done)
             }
         }
     }
 
-
     async fn close(&self) -> Result<(), Error> {
-        // 停止事件循环处理线程
-        let mut eventloop_handle_guard = self.eventloop_handle.lock().await;
-        if let Some(handle) = eventloop_handle_guard.take() {
-            handle.abort();
-        }
+        // 发送关闭信号
+        let _ = self.close_tx.send(());
 
         // 断开MQTT连接
         let client_arc = self.client.clone();
@@ -185,12 +199,9 @@ impl Input for MqttInput {
             let _ = client.disconnect().await;
         }
 
-
-        self.connected.store(false, Ordering::SeqCst);
         Ok(())
     }
 }
-
 
 struct MqttAck {
     client: Arc<Mutex<Option<AsyncClient>>>,
@@ -202,7 +213,7 @@ impl Ack for MqttAck {
         let mutex_guard = self.client.lock().await;
         if let Some(client) = &*mutex_guard {
             if let Err(e) = client.ack(&self.publish).await {
-                error!("{}",e);
+                error!("{}", e);
             }
         }
     }
