@@ -9,9 +9,9 @@ use std::sync::Arc;
 use crate::{Error, MessageBatch};
 
 pub mod batch;
+pub mod json;
 pub mod protobuf;
 pub mod sql;
-pub mod json;
 
 /// 处理器组件的特征接口
 #[async_trait]
@@ -22,7 +22,6 @@ pub trait Processor: Send + Sync {
     /// 关闭处理器
     async fn close(&self) -> Result<(), Error>;
 }
-
 
 /// 处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,7 +40,9 @@ impl ProcessorConfig {
             ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
             ProcessorConfig::Json => Ok(Arc::new(json::JsonProcessor::new()?)),
-            ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),
+            ProcessorConfig::Protobuf(config) => {
+                Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?))
+            }
         }
     }
 }

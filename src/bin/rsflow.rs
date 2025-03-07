@@ -18,17 +18,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .version("0.1.0")
         .author("Rust流处理引擎团队")
         .about("高性能、可靠且易于扩展的数据流处理系统")
-        .arg(Arg::new("config")
-            .short('c')
-            .long("config")
-            .value_name("FILE")
-            .help("指定配置文件路径")
-            .required(true))
-        .arg(Arg::new("validate")
-            .short('v')
-            .long("validate")
-            .help("仅验证配置文件，不启动引擎")
-            .action(clap::ArgAction::SetTrue))
+        .arg(
+            Arg::new("config")
+                .short('c')
+                .long("config")
+                .value_name("FILE")
+                .help("指定配置文件路径")
+                .required(true),
+        )
+        .arg(
+            Arg::new("validate")
+                .short('v')
+                .long("validate")
+                .help("仅验证配置文件，不启动引擎")
+                .action(clap::ArgAction::SetTrue),
+        )
         .get_matches();
 
     // 获取配置文件路径
@@ -54,7 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 初始化日志系统
     init_logging(&config);
-
 
     // 创建并运行所有流
     let mut streams = Vec::new();
@@ -115,9 +118,7 @@ fn init_logging(config: &EngineConfig) -> () {
         Level::INFO
     };
 
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(log_level)
-        .finish();
+    let subscriber = FmtSubscriber::builder().with_max_level(log_level).finish();
 
     tracing::subscriber::set_global_default(subscriber)
         .expect("You can't set a global default log subscriber");

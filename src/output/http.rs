@@ -43,17 +43,18 @@ impl HttpOutput {
     }
 }
 
-
 #[async_trait]
 impl Output for HttpOutput {
     async fn connect(&self) -> Result<(), Error> {
         // 创建HTTP客户端
-        let client_builder = Client::builder()
-            .timeout(std::time::Duration::from_millis(self.config.timeout_ms));
+        let client_builder =
+            Client::builder().timeout(std::time::Duration::from_millis(self.config.timeout_ms));
         let client_arc = self.client.clone();
-        client_arc.lock().await.replace(client_builder.build().map_err(|e| {
-            Error::Connection(format!("无法创建HTTP客户端: {}", e))
-        })?);
+        client_arc.lock().await.replace(
+            client_builder
+                .build()
+                .map_err(|e| Error::Connection(format!("无法创建HTTP客户端: {}", e)))?,
+        );
 
         self.connected.store(true, Ordering::SeqCst);
         Ok(())
@@ -66,7 +67,6 @@ impl Output for HttpOutput {
             return Err(Error::Connection("输出未连接".to_string()));
         }
 
-
         let client = client_arc_guard.as_ref().unwrap();
         let content = msg.as_string()?;
         if content.is_empty() {
@@ -76,7 +76,8 @@ impl Output for HttpOutput {
         if content.len() == 1 {
             body = content[0].clone();
         } else {
-            body = serde_json::to_string(&content).map_err(|_| Error::Processing("无法序列化消息".to_string()))?;
+            body = serde_json::to_string(&content)
+                .map_err(|_| Error::Processing("无法序列化消息".to_string()))?;
         }
 
         // 构建请求
@@ -86,7 +87,12 @@ impl Output for HttpOutput {
             "PUT" => client.put(&self.config.url).body(body),
             "DELETE" => client.delete(&self.config.url),
             "PATCH" => client.patch(&self.config.url).body(body),
-            _ => return Err(Error::Config(format!("不支持的HTTP方法: {}", self.config.method))),
+            _ => {
+                return Err(Error::Config(format!(
+                    "不支持的HTTP方法: {}",
+                    self.config.method
+                )))
+            }
         };
 
         // 添加请求头
@@ -97,7 +103,12 @@ impl Output for HttpOutput {
         }
 
         // 添加内容类型头（如果没有指定）
-        if self.config.headers.as_ref().map_or(true, |h| !h.contains_key("Content-Type")) {
+        if self
+            .config
+            .headers
+            .as_ref()
+            .map_or(true, |h| !h.contains_key("Content-Type"))
+        {
             request_builder = request_builder.header(header::CONTENT_TYPE, "application/json");
         }
 
@@ -112,10 +123,14 @@ impl Output for HttpOutput {
                         return Ok(());
                     } else {
                         let status = response.status();
-                        let body = response.text().await.unwrap_or_else(|_| "<无法读取响应体>".to_string());
-                        last_error = Some(Error::Processing(
-                            format!("HTTP请求失败: 状态码 {}, 响应: {}", status, body)
-                        ));
+                        let body = response
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "<无法读取响应体>".to_string());
+                        last_error = Some(Error::Processing(format!(
+                            "HTTP请求失败: 状态码 {}, 响应: {}",
+                            status, body
+                        )));
                     }
                 }
                 Err(e) => {
@@ -127,8 +142,9 @@ impl Output for HttpOutput {
             if retry_count <= self.config.retry_count {
                 // 指数退避重试
                 tokio::time::sleep(std::time::Duration::from_millis(
-                    100 * 2u64.pow(retry_count - 1)
-                )).await;
+                    100 * 2u64.pow(retry_count - 1),
+                ))
+                .await;
             }
         }
 

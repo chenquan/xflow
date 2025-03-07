@@ -24,7 +24,11 @@ impl GenerateInput {
     pub fn new(config: GenerateConfig) -> Result<Self, Error> {
         let batch_size = config.batch_size.unwrap_or(1);
 
-        Ok(Self { config, count: AtomicI64::new(0), batch_size })
+        Ok(Self {
+            config,
+            count: AtomicI64::new(0),
+            batch_size,
+        })
     }
 }
 
@@ -48,7 +52,8 @@ impl Input for GenerateInput {
             msgs.push(s.into_bytes())
         }
 
-        self.count.fetch_add(self.batch_size as i64, Ordering::SeqCst);
+        self.count
+            .fetch_add(self.batch_size as i64, Ordering::SeqCst);
 
         Ok((MessageBatch::new_binary(msgs), Arc::new(NoopAck)))
     }
@@ -56,7 +61,6 @@ impl Input for GenerateInput {
         Ok(())
     }
 }
-
 
 fn deserialize_duration<'de, D>(deserializer: D) -> Result<Duration, D::Error>
 where

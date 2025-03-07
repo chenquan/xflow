@@ -6,12 +6,11 @@ use thiserror::Error;
 
 pub mod config;
 pub mod input;
+pub mod metrics;
 pub mod output;
 pub mod pipeline;
 pub mod processor;
 pub mod stream;
-pub mod metrics;
-
 
 /// 表示流处理引擎中的错误
 #[derive(Error, Debug)]
@@ -30,6 +29,9 @@ pub enum Error {
 
     #[error("连接错误: {0}")]
     Connection(String),
+
+    #[error("连接断开")]
+    Disconnection,
 
     #[error("超时错误")]
     Timeout,
@@ -72,14 +74,12 @@ impl Metadata {
 
 type Bytes = Vec<u8>;
 
-
 /// 表示流处理引擎中的消息
 #[derive(Clone, Debug)]
 pub struct MessageBatch {
     /// 消息内容
     content: Content,
 }
-
 
 #[derive(Clone, Debug)]
 pub enum Content {
@@ -108,17 +108,17 @@ impl MessageBatch {
         Self::new_binary(vec![content.as_bytes().to_vec()])
     }
 
-
     /// 将消息内容解析为字符串
     pub fn as_string(&self) -> Result<Vec<String>, Error> {
         match &self.content {
-            Content::Arrow(_) => {
-                Err(Error::Processing("无法解析为JSON".to_string()))
-            }
+            Content::Arrow(_) => Err(Error::Processing("无法解析为JSON".to_string())),
             Content::Binary(v) => {
-                let x: Result<Vec<String>, Error> = v.iter()
-                    .map(|v| String::from_utf8(v.clone())
-                        .map_err(|_| Error::Processing("无法解析为字符串".to_string())))
+                let x: Result<Vec<String>, Error> = v
+                    .iter()
+                    .map(|v| {
+                        String::from_utf8(v.clone())
+                            .map_err(|_| Error::Processing("无法解析为字符串".to_string()))
+                    })
                     .collect();
                 Ok(x?)
             }
@@ -134,5 +134,3 @@ impl MessageBatch {
         }
     }
 }
-
-

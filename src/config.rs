@@ -5,13 +5,7 @@
 use serde::{Deserialize, Serialize};
 use toml;
 
-use crate::{
-    stream::StreamConfig
-
-
-    ,
-    Error,
-};
+use crate::{stream::StreamConfig, Error};
 
 /// 配置文件格式
 #[derive(Debug, Clone, Copy)]
@@ -77,57 +71,58 @@ impl EngineConfig {
     pub fn from_file(path: &str) -> Result<Self, Error> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| Error::Config(format!("无法读取配置文件: {}", e)))?;
-        
+
         // 根据文件后缀名判断格式
         if let Some(format) = get_format_from_path(path) {
             match format {
                 ConfigFormat::YAML => {
                     return serde_yaml::from_str(&content)
                         .map_err(|e| Error::Config(format!("YAML解析错误: {}", e)));
-                },
+                }
                 ConfigFormat::JSON => {
                     return serde_json::from_str(&content)
                         .map_err(|e| Error::Config(format!("JSON解析错误: {}", e)));
-                },
+                }
                 ConfigFormat::TOML => {
                     return toml::from_str(&content)
                         .map_err(|e| Error::Config(format!("TOML解析错误: {}", e)));
-                },
+                }
             }
         }
-        
+
         // 如果无法从文件名判断格式，则尝试所有格式
         Self::from_string(&content)
     }
-    
+
     /// 从字符串加载配置
     pub fn from_string(content: &str) -> Result<Self, Error> {
         // 尝试解析为YAML
         if let Ok(config) = serde_yaml::from_str(content) {
             return Ok(config);
         }
-        
+
         // 尝试解析为TOML
         if let Ok(config) = toml::from_str(content) {
             return Ok(config);
         }
-        
+
         // 尝试解析为JSON
         if let Ok(config) = serde_json::from_str(content) {
             return Ok(config);
         }
-        
+
         // 所有格式都解析失败
-        Err(Error::Config(format!("无法解析配置文件，支持的格式为：YAML、TOML、JSON")))
+        Err(Error::Config(format!(
+            "无法解析配置文件，支持的格式为：YAML、TOML、JSON"
+        )))
     }
-    
+
     /// 保存配置到文件
     pub fn save_to_file(&self, path: &str) -> Result<(), Error> {
         let content = toml::to_string_pretty(self)
             .map_err(|e| Error::Config(format!("无法序列化配置: {}", e)))?;
-        
-        std::fs::write(path, content)
-            .map_err(|e| Error::Config(format!("无法写入配置文件: {}", e)))
+
+        std::fs::write(path, content).map_err(|e| Error::Config(format!("无法写入配置文件: {}", e)))
     }
 }
 

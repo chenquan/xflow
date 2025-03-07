@@ -3,14 +3,14 @@
 //! 将处理后的数据输出到标准输出
 
 use std::io::{self, Write};
-use std::sync::Mutex;
+use std::string::String;
 
+use crate::{output::Output, Bytes, Content, Error, MessageBatch};
 use async_trait::async_trait;
 use datafusion::arrow;
 use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
-
-use crate::{output::Output, Bytes, Content, Error, MessageBatch};
+use tokio::sync::Mutex;
 
 /// 标准输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,44 +43,41 @@ impl Output for StdoutOutput {
 
     async fn write(&self, batch: &MessageBatch) -> Result<(), Error> {
         match &batch.content {
-            Content::Arrow(v) => {
-                self.arrow_stdout(&v)
-            }
-            Content::Binary(v) => {
-                self.binary_stdout(&v)
-            }
+            Content::Arrow(v) => self.arrow_stdout(&v).await,
+            Content::Binary(v) => self.binary_stdout(&v).await,
         }
     }
-
 
     async fn close(&self) -> Result<(), Error> {
         Ok(())
     }
 }
 impl StdoutOutput {
-    pub fn arrow_stdout(&self, message_batch: &RecordBatch) -> Result<(), Error> {
-        let mut writer_std = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
+    async fn arrow_stdout(&self, message_batch: &RecordBatch) -> Result<(), Error> {
+        let mut writer_std = self.writer.lock().await;
 
         // 使用Arrow的JSON序列化功能
         let mut buf = Vec::new();
         let mut writer = arrow::json::ArrayWriter::new(&mut buf);
-        writer.write(message_batch)
+        writer
+            .write(message_batch)
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化错误: {}", e)))?;
-        writer.finish()
+        writer
+            .finish()
             .map_err(|e| Error::Processing(format!("Arrow JSON序列化完成错误: {}", e)))?;
-        let string = String::from_utf8_lossy(&buf);
+        let s = String::from_utf8_lossy(&buf);
 
         if self.config.append_newline.unwrap_or(true) {
-            writeln!(writer_std, "{}", string).map_err(Error::Io)?
+            writeln!(writer_std, "{}", s).map_err(Error::Io)?
         } else {
-            write!(writer_std, "{}", string).map_err(Error::Io)?
+            write!(writer_std, "{}", s).map_err(Error::Io)?
         }
 
         writer_std.flush().map_err(Error::Io)?;
         Ok(())
     }
-    pub fn binary_stdout(&self, msg: &[Bytes]) -> Result<(), Error> {
-        let mut writer_std = self.writer.lock().map_err(|e| Error::Unknown(e.to_string()))?;
+    async fn binary_stdout(&self, msg: &[Bytes]) -> Result<(), Error> {
+        let mut writer_std = self.writer.lock().await;
         for x in msg {
             if self.config.append_newline.unwrap_or(true) {
                 writeln!(writer_std, "{}", String::from_utf8_lossy(&x)).map_err(Error::Io)?

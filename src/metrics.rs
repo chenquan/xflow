@@ -24,19 +24,19 @@ pub enum MetricType {
 pub trait Metric: Send + Sync {
     /// 递增计数器
     fn increment(&self, value: u64);
-    
+
     /// 递减计数器（仅适用于Gauge类型）
     fn decrement(&self, value: u64);
-    
+
     /// 设置值
     fn set(&self, value: u64);
-    
+
     /// 记录计时
     fn timing(&self, duration: Duration);
-    
+
     /// 获取指标类型
     fn metric_type(&self) -> MetricType;
-    
+
     /// 获取指标名称
     fn name(&self) -> &str;
 }
@@ -45,16 +45,19 @@ pub trait Metric: Send + Sync {
 pub trait MetricCollector: Send + Sync {
     /// 创建或获取计数器
     fn counter(&self, name: &str) -> Arc<dyn Metric>;
-    
+
     /// 创建或获取仪表
     fn gauge(&self, name: &str) -> Arc<dyn Metric>;
-    
+
     /// 创建或获取计时器
     fn timer(&self, name: &str) -> Arc<dyn Metric>;
-    
+
     /// 添加标签
-    fn with_tags(&self, tags: std::collections::HashMap<String, String>) -> Box<dyn MetricCollector>;
-    
+    fn with_tags(
+        &self,
+        tags: std::collections::HashMap<String, String>,
+    ) -> Box<dyn MetricCollector>;
+
     /// 关闭收集器
     fn close(&self) -> Result<(), Error>;
 }
@@ -80,8 +83,12 @@ impl Metric for NoopMetric {
     fn decrement(&self, _value: u64) {}
     fn set(&self, _value: u64) {}
     fn timing(&self, _duration: Duration) {}
-    fn metric_type(&self) -> MetricType { self.metric_type.clone() }
-    fn name(&self) -> &str { &self.name }
+    fn metric_type(&self) -> MetricType {
+        self.metric_type.clone()
+    }
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 /// 空指标收集器实现（不执行任何操作）
@@ -98,19 +105,22 @@ impl MetricCollector for NoopCollector {
     fn counter(&self, name: &str) -> Arc<dyn Metric> {
         Arc::new(NoopMetric::new(name, MetricType::Counter))
     }
-    
+
     fn gauge(&self, name: &str) -> Arc<dyn Metric> {
         Arc::new(NoopMetric::new(name, MetricType::Gauge))
     }
-    
+
     fn timer(&self, name: &str) -> Arc<dyn Metric> {
         Arc::new(NoopMetric::new(name, MetricType::Timing))
     }
-    
-    fn with_tags(&self, _tags: std::collections::HashMap<String, String>) -> Box<dyn MetricCollector> {
+
+    fn with_tags(
+        &self,
+        _tags: std::collections::HashMap<String, String>,
+    ) -> Box<dyn MetricCollector> {
         Box::new(Self::new())
     }
-    
+
     fn close(&self) -> Result<(), Error> {
         Ok(())
     }
@@ -145,31 +155,34 @@ impl MetricCollector for PrometheusCollector {
         self.registry.register(Box::new(counter.clone())).unwrap();
         Arc::new(PrometheusMetric::new_counter(name, counter))
         */
-        
+
         // 返回一个空指标作为占位符
         Arc::new(NoopMetric::new(name, MetricType::Counter))
     }
-    
+
     fn gauge(&self, name: &str) -> Arc<dyn Metric> {
         // 在实际实现中，这里应该创建一个Prometheus仪表
         // 返回一个空指标作为占位符
         Arc::new(NoopMetric::new(name, MetricType::Gauge))
     }
-    
+
     fn timer(&self, name: &str) -> Arc<dyn Metric> {
         // 在实际实现中，这里应该创建一个Prometheus直方图
         // 返回一个空指标作为占位符
         Arc::new(NoopMetric::new(name, MetricType::Timing))
     }
-    
-    fn with_tags(&self, _tags: std::collections::HashMap<String, String>) -> Box<dyn MetricCollector> {
+
+    fn with_tags(
+        &self,
+        _tags: std::collections::HashMap<String, String>,
+    ) -> Box<dyn MetricCollector> {
         // 在实际实现中，这里应该创建一个带有标签的新收集器
         Box::new(Self {
             // registry: self.registry.clone(),
             prefix: self.prefix.clone(),
         })
     }
-    
+
     fn close(&self) -> Result<(), Error> {
         // Prometheus收集器不需要特殊的关闭操作
         Ok(())
@@ -190,7 +203,7 @@ impl TimingHelper {
             start: Instant::now(),
         }
     }
-    
+
     /// 完成计时并记录持续时间
     pub fn done(self) {
         let duration = self.start.elapsed();
@@ -199,32 +212,35 @@ impl TimingHelper {
 }
 
 /// 创建指标收集器
-pub fn create_metrics(config: &crate::config::MetricsConfig) -> Result<Box<dyn MetricCollector>, Error> {
+pub fn create_metrics(
+    config: &crate::config::MetricsConfig,
+) -> Result<Box<dyn MetricCollector>, Error> {
     if !config.enabled {
         return Ok(Box::new(NoopCollector::new()));
     }
-    
+
     let prefix = config.prefix.as_deref().unwrap_or("").to_string();
-    
+
     match config.type_name.as_str() {
         "prometheus" => {
             let collector = PrometheusCollector::new(&prefix)?;
-            
+
             // 如果有标签，则添加
             if let Some(tags) = &config.tags {
                 Ok(collector.with_tags(tags.clone()))
             } else {
                 Ok(Box::new(collector))
             }
-        },
+        }
         "statsd" => {
             // 在实际实现中，这里应该创建一个StatsD收集器
             // 暂时返回一个空收集器
             Ok(Box::new(NoopCollector::new()))
-        },
-        "none" | "noop" => {
-            Ok(Box::new(NoopCollector::new()))
-        },
-        _ => Err(Error::Config(format!("不支持的指标类型: {}", config.type_name))),
+        }
+        "none" | "noop" => Ok(Box::new(NoopCollector::new())),
+        _ => Err(Error::Config(format!(
+            "不支持的指标类型: {}",
+            config.type_name
+        ))),
     }
 }

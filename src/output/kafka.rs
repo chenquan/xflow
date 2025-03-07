@@ -4,7 +4,27 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::Error;
+use crate::{Content, Error};
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CompressionType {
+    None,
+    Gzip,
+    Snappy,
+    Lz4,
+}
+
+impl std::fmt::Display for CompressionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompressionType::None => write!(f, "none"),
+            CompressionType::Gzip => write!(f, "gzip"),
+            CompressionType::Snappy => write!(f, "snappy"),
+            CompressionType::Lz4 => write!(f, "lz4"),
+        }
+    }
+}
 
 /// Kafka输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,8 +37,8 @@ pub struct KafkaOutputConfig {
     pub key: Option<String>,
     /// 客户端ID
     pub client_id: Option<String>,
-    /// 压缩类型（none, gzip, snappy, lz4）
-    pub compression: Option<String>,
+    /// 压缩类型
+    pub compression: Option<CompressionType>,
     /// 确认级别（0=无确认, 1=领导者确认, all=所有副本确认）
     pub acks: Option<String>,
 }
@@ -26,9 +46,7 @@ pub struct KafkaOutputConfig {
 /// Kafka输出组件
 pub struct KafkaOutput {
     config: KafkaOutputConfig,
-    // 在实际实现中，这里应该有一个Kafka生产者客户端
-    // 例如：producer: Option<rdkafka::producer::FutureProducer>,
-    connected: bool,
+    producer: Arc<RwLock<Option<FutureProducer>>>,
 }
 
 impl KafkaOutput {
@@ -36,90 +54,100 @@ impl KafkaOutput {
     pub fn new(config: &KafkaOutputConfig) -> Result<Self, Error> {
         Ok(Self {
             config: config.clone(),
-            // producer: None,
-            connected: false,
+            producer: Arc::new(RwLock::new(None)),
         })
     }
 }
-//
-// #[async_trait]
-// impl Output for KafkaOutput {
-//     async fn connect(&mut self) -> Result<(), Error> {
-//         // 注意：这是一个模拟实现
-//         // 在实际应用中，这里应该创建一个真正的Kafka生产者客户端
-//         // 例如使用rdkafka库：
-//         /*
-//         use rdkafka::config::ClientConfig;
-//         use rdkafka::producer::{FutureProducer, FutureRecord};
-//
-//         let mut client_config = ClientConfig::new();
-//
-//         // 设置Kafka服务器地址
-//         client_config.set("bootstrap.servers", &self.config.brokers.join(","));
-//
-//         // 设置客户端ID
-//         if let Some(client_id) = &self.config.client_id {
-//             client_config.set("client.id", client_id);
-//         }
-//
-//         // 设置压缩类型
-//         if let Some(compression) = &self.config.compression {
-//             client_config.set("compression.type", compression);
-//         }
-//
-//         // 设置确认级别
-//         if let Some(acks) = &self.config.acks {
-//             client_config.set("acks", acks);
-//         }
-//
-//         // 创建生产者
-//         self.producer = Some(
-//             client_config.create()
-//                 .map_err(|e| Error::Connection(format!("无法创建Kafka生产者: {}", e)))?
-//         );
-//         */
-//
-//         self.connected = true;
-//         Ok(())
-//     }
-//
-//     async fn write(&mut self, msg: &Message) -> Result<(), Error> {
-//         if !self.connected {
-//             return Err(Error::Connection("输出未连接".to_string()));
-//         }
-//
-//         // 注意：这是一个模拟实现
-//         // 在实际应用中，这里应该使用Kafka生产者发送消息
-//         // 例如：
-//         /*
-//         use rdkafka::producer::FutureRecord;
-//         use std::time::Duration;
-//
-//         let producer = self.producer.as_ref().unwrap();
-//         let content = msg.content();
-//
-//         // 创建记录
-//         let mut record = FutureRecord::to(&self.config.topic)
-//             .payload(content);
-//
-//         // 如果有分区键，则设置
-//         if let Some(key) = &self.config.key {
-//             record = record.key(key);
-//         }
-//
-//         // 发送消息
-//         producer.send(record, Duration::from_secs(5))
-//             .await
-//             .map_err(|(e, _)| Error::Processing(format!("发送Kafka消息失败: {}", e)))?;
-//         */
-//
-//         // 模拟成功发送
-//         Ok(())
-//     }
-//
-//     fn close(&mut self) -> Result<(), Error> {
-//         self.connected = false;
-//         // self.producer = None;
-//         Ok(())
-//     }
-// }
+use crate::{output::Output, MessageBatch};
+use async_trait::async_trait;
+use rdkafka::config::ClientConfig;
+use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::RwLock;
+
+#[async_trait]
+impl Output for KafkaOutput {
+    async fn connect(&self) -> Result<(), Error> {
+        let mut client_config = ClientConfig::new();
+
+        // 设置Kafka服务器地址
+        client_config.set("bootstrap.servers", &self.config.brokers.join(","));
+
+        // 设置客户端ID
+        if let Some(client_id) = &self.config.client_id {
+            client_config.set("client.id", client_id);
+        }
+
+        // 设置压缩类型
+        if let Some(compression) = &self.config.compression {
+            client_config.set("compression.type", compression.to_string().to_lowercase());
+        }
+
+        // 设置确认级别
+        if let Some(acks) = &self.config.acks {
+            client_config.set("acks", acks);
+        }
+
+        // 创建生产者
+        let producer: FutureProducer = client_config
+            .create()
+            .map_err(|e| Error::Connection(format!("无法创建Kafka生产者: {}", e)))?;
+
+        // 保存生产者实例
+        let producer_arc = self.producer.clone();
+        let mut producer_guard = producer_arc.write().await;
+        *producer_guard = Some(producer);
+
+        Ok(())
+    }
+
+    async fn write(&self, msg: &MessageBatch) -> Result<(), Error> {
+        let producer_arc = self.producer.clone();
+        let producer_guard = producer_arc.read().await;
+        let producer = producer_guard
+            .as_ref()
+            .ok_or_else(|| Error::Connection("Kafka生产者未初始化".to_string()))?;
+
+        let payloads = msg.as_string()?;
+        if payloads.is_empty() {
+            return Ok(());
+        }
+
+        match &msg.content {
+            Content::Arrow(_) => return Err(Error::Processing("不支持arrow格式".to_string())),
+            Content::Binary(v) => {
+                for x in v {
+                    // 创建记录
+                    let mut record = FutureRecord::to(&self.config.topic).payload(&x);
+
+                    // 如果有分区键，则设置
+                    if let Some(key) = &self.config.key {
+                        record = record.key(key);
+                    }
+
+                    // 获取生产者并发送消息
+                    producer
+                        .send(record, Duration::from_secs(5))
+                        .await
+                        .map_err(|(e, _)| Error::Processing(format!("发送Kafka消息失败: {}", e)))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn close(&self) -> Result<(), Error> {
+        // 获取生产者并关闭
+        let producer_arc = self.producer.clone();
+        let mut producer_guard = producer_arc.write().await;
+
+        if let Some(producer) = producer_guard.take() {
+            // 等待所有消息发送完成
+            producer
+                .flush(Duration::from_secs(30))
+                .map_err(|e| Error::Connection(format!("关闭Kafka生产者时刷新消息失败: {}", e)))?;
+        }
+        Ok(())
+    }
+}

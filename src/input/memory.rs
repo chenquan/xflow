@@ -56,7 +56,8 @@ impl MemoryInput {
 #[async_trait]
 impl Input for MemoryInput {
     async fn connect(&self) -> Result<(), Error> {
-        self.connected.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.connected
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 
@@ -79,9 +80,9 @@ impl Input for MemoryInput {
         }
     }
 
-
     async fn close(&self) -> Result<(), Error> {
-        self.connected.store(false, std::sync::atomic::Ordering::SeqCst);
+        self.connected
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         Ok(())
     }
 }

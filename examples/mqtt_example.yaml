@@ -1,6 +1,6 @@
 # MQTT示例配置
 logging:
-  level: trace
+  level: error
 streams:
   - input:
       type: "mqtt"
@@ -15,17 +15,20 @@ streams:
     pipeline:
       thread_num: 4
       processors:
+        - type: "json"
         - type: "sql"
           # SQL查询语句，支持标准SQL语法
           query: "SELECT * ,cast(value as string) as tx FROM flow WHERE value > 10"
           # 表名（用于SQL查询中引用）
     #          table_name: "events"
-
+        - type: "json"
 
     output:
-      type: "mqtt"
-      host: "localhost"
-      port: 1883
-      qos: 1
-      client_id: "flow_output"
-      topic: "flow_output"
+      type: "stdout"
+#    output:
+#      type: "mqtt"
+#      host: "localhost"
+#      port: 1883
+#      qos: 1
+#      client_id: "flow_output"
+#      topic: "flow_output"

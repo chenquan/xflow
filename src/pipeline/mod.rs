@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{processor::Processor, Error, MessageBatch, };
+use crate::{processor::Processor, Error, MessageBatch};
 
 /// 管道结构体，包含一系列处理器
 pub struct Pipeline {
