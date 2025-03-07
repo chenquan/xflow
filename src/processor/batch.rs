@@ -2,12 +2,12 @@
 //!
 //! 将多个消息批量处理为一个或多个消息
 
-use std::sync::Arc;
+use crate::{processor::Processor, Content, Error, MessageBatch};
 use async_trait::async_trait;
 use datafusion::arrow;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
-use crate::{Error, MessageBatch, processor::Processor, Content};
 
 /// 批处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,7 +16,7 @@ pub struct BatchProcessorConfig {
     pub count: usize,
     /// 批处理超时（毫秒）
     pub timeout_ms: u64,
-    /// 批处理处理器（可选，如特定字段匹配）
+    /// 批处理数据类型
     pub data_type: String,
 }
 
