@@ -88,7 +88,7 @@ impl Input for FileInput {
         let bytes_read;
         let mut line = String::new();
         {
-            let mut reader_mutex = reader_mutex.as_mut();
+            let reader_mutex = reader_mutex.as_mut();
             if reader_mutex.is_none() {
                 return Err(Error::Connection("输入未连接".to_string()));
             }
