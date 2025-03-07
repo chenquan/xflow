@@ -2,17 +2,17 @@
 //!
 //! 从HTTP端点接收数据
 
+use async_trait::async_trait;
+use axum::{extract::State, http::StatusCode, routing::post, Router};
+use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use axum::{Router, routing::post, extract::State, http::StatusCode};
 
-use crate::{Error, MessageBatch, input::Input};
 use crate::input::{Ack, NoopAck};
+use crate::{input::Input, Error, MessageBatch};
 
 /// HTTP输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

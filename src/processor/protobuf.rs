@@ -2,24 +2,23 @@
 //!
 //! 用于在Protobuf数据和Arrow格式之间进行转换的处理器
 
-use std::{fs, io};
-use std::path::Path;
-use std::sync::Arc;
 use async_trait::async_trait;
 use datafusion::arrow;
-use serde::{Deserialize, Serialize};
 use datafusion::arrow::array::{Array, ArrayRef, BinaryArray, BooleanArray, Float32Array, Float64Array, Int32Array, Int64Array, StringArray, UInt32Array, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::parquet::data_type::AsBytes;
-use prost_reflect::{DynamicMessage, Kind, MessageDescriptor, Value};
 use prost_reflect::prost::Message;
 use prost_reflect::prost_types::FileDescriptorSet;
+use prost_reflect::{DynamicMessage, MessageDescriptor, Value};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::sync::Arc;
+use std::{fs, io};
 
-use protobuf::Message as ProtobufMessage;
-use tracing::info;
-use crate::{Error, MessageBatch, Content};
 use crate::processor::Processor;
+use crate::{Content, Error, MessageBatch};
+use protobuf::Message as ProtobufMessage;
 
 /// Protobuf格式转换处理器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

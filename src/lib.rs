@@ -1,12 +1,9 @@
 //! Rust流处理引擎
 
-use std::any::Any;
-use std::fmt;
-use std::fmt::Formatter;
-use std::ops::Deref;
 use datafusion::arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use std::any::Any;
+use std::ops::Deref;
 use thiserror::Error;
 
 pub mod buffer;

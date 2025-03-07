@@ -6,12 +6,11 @@ use serde::{Deserialize, Serialize};
 use toml;
 
 use crate::{
+    stream::StreamConfig
+
+
+    ,
     Error,
-    buffer::BufferConfig,
-    input::InputConfig,
-    output::OutputConfig,
-    processor::ProcessorConfig,
-    stream::StreamConfig,
 };
 
 /// 配置文件格式

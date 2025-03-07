@@ -2,10 +2,9 @@
 //!
 //! 将处理后的数据发送到Redis数据库
 
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, MessageBatch, output::Output};
+use crate::Error;
 
 /// Redis输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

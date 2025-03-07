@@ -2,11 +2,10 @@
 //!
 //! 管道是处理器的有序集合，定义了数据如何从输入流向输出，经过一系列处理步骤。
 
-use std::ops::Deref;
-use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-use crate::{Error, MessageBatch, processor::Processor,  };
+use crate::{processor::Processor, Error, MessageBatch, };
 
 /// 管道结构体，包含一系列处理器
 pub struct Pipeline {

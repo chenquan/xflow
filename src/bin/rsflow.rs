@@ -5,8 +5,8 @@
 
 use std::process;
 
-use clap::{Command, Arg};
-use tracing::{info, error, Level};
+use clap::{Arg, Command};
+use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use rsflow::config::EngineConfig;

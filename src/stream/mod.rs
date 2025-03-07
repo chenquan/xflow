@@ -2,12 +2,12 @@
 //!
 //! 流是完整的数据处理单元，包含输入、管道和输出。
 
-use std::sync::Arc;
+use crate::input::Ack;
+use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
 use flume::RecvError;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
-use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
-use crate::input::{Ack};
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
 pub struct Stream {

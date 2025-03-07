@@ -2,7 +2,10 @@
 //!
 //! 从MQTT代理接收数据
 
+use crate::input::Ack;
+use crate::{input::Input, Content, Error, MessageBatch};
 use async_trait::async_trait;
+use flume::{Receiver, RecvError, SendError, Sender};
 use rumqttc::{AsyncClient, ClientError, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
@@ -10,11 +13,8 @@ use std::future::Future;
 use std::string::FromUtf8Error;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use flume::{Receiver, RecvError, SendError, Sender};
 use tokio::sync::Mutex;
 use tracing::{error, info};
-use crate::{input::Input, Content, Error, MessageBatch};
-use crate::input::Ack;
 
 /// MQTT输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

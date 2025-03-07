@@ -2,13 +2,13 @@
 //!
 //! 将处理后的数据发送到HTTP端点
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::{output::Output, Error, MessageBatch};
 use async_trait::async_trait;
-use reqwest::{Client, header};
+use reqwest::{header, Client};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::{Error, MessageBatch, output::Output};
 
 /// HTTP输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

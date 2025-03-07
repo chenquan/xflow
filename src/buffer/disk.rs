@@ -2,16 +2,6 @@
 //!
 //! 在磁盘上提供临时消息存储，支持持久化
 
-use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-
-use crate::{Error, MessageBatch, buffer::Buffer};
-
 // /// 磁盘缓冲区配置
 // #[derive(Debug, Clone, Serialize, Deserialize)]
 // pub struct DiskBufferConfig {

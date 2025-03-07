@@ -2,17 +2,16 @@
 //!
 //! 用于在二进制数据和Arrow格式之间进行转换的处理器
 
-use std::sync::Arc;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
+use datafusion::arrow;
 use datafusion::arrow::array::{ArrayRef, BooleanArray, Float64Array, Int64Array, NullArray, StringArray, UInt64Array};
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow;
 use serde_json::Value;
+use std::sync::Arc;
 
-use crate::{Error, MessageBatch, Content, Bytes};
 use crate::processor::Processor;
+use crate::{Bytes, Content, Error, MessageBatch};
 
 /// Arrow格式转换处理器配置
 

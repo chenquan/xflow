@@ -3,16 +3,16 @@
 //! 从内存中的消息队列读取数据
 
 use std::collections::VecDeque;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, MessageBatch, input::Input};
 use crate::input::Ack;
 use crate::input::NoopAck;
+use crate::{input::Input, Error, MessageBatch};
 
 /// 内存输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

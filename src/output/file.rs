@@ -3,15 +3,15 @@
 //! 将处理后的数据输出到文件
 
 use std::fs::{File, OpenOptions};
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::Path;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
+use crate::{output::Output, Error, MessageBatch};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-use crate::{Error, MessageBatch, output::Output};
 
 /// 文件输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

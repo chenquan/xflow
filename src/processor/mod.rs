@@ -2,10 +2,9 @@
 //!
 //! 处理器组件负责对数据进行转换、过滤、丰富等操作。
 
-use std::sync::Arc;
 use async_trait::async_trait;
-use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{Error, MessageBatch};
 
