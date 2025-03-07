@@ -3,10 +3,8 @@
 //! 流是完整的数据处理单元，包含输入、管道和输出。
 
 use crate::input::Ack;
-use crate::{buffer::Buffer, input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
-use flume::RecvError;
+use crate::{input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
@@ -14,7 +12,6 @@ pub struct Stream {
     input: Arc<dyn Input>,
     pipeline: Arc<Pipeline>,
     output: Arc<dyn Output>,
-    buffer: Option<Arc<dyn Buffer>>,
     thread_num: i32,
 }
 
@@ -24,14 +21,12 @@ impl Stream {
         input: Arc<dyn Input>,
         pipeline: Pipeline,
         output: Arc<dyn Output>,
-        buffer: Option<Arc<dyn Buffer>>,
         thread_num: i32,
     ) -> Self {
         Self {
             input,
             pipeline: Arc::new(pipeline),
             output,
-            buffer,
             thread_num,
         }
     }
@@ -40,7 +35,7 @@ impl Stream {
     pub async fn run(&mut self) -> Result<(), Error> {
         // 连接输入和输出
         self.input.connect().await?;
-        self.output.connect().await?;;
+        self.output.connect().await?;
 
 
         let (input_sender, input_receiver) = flume::bounded::<(MessageBatch, Arc<dyn Ack>)>(1000);
@@ -79,7 +74,7 @@ impl Stream {
                                 }
                             }
                         }
-                        Err(e) => {
+                        Err(_e) => {
                             return;
                         }
                     }
@@ -161,9 +156,6 @@ impl Stream {
         // 关闭顺序：输入 -> 管道 -> 缓冲区 -> 输出
         self.input.close().await?;
         self.pipeline.close().await?;
-        if let Some(buffer) = &mut self.buffer {
-            buffer.close().await?;
-        }
         self.output.close().await?;
         Ok(())
     }
@@ -175,7 +167,6 @@ pub struct StreamConfig {
     pub input: crate::input::InputConfig,
     pub pipeline: crate::pipeline::PipelineConfig,
     pub output: crate::output::OutputConfig,
-    pub buffer: Option<crate::buffer::BufferConfig>,
 }
 
 impl StreamConfig {
@@ -184,13 +175,8 @@ impl StreamConfig {
         let input = self.input.build()?;
         let (pipeline, thread_num) = self.pipeline.build()?;
         let output = self.output.build()?;
-        let buffer = if let Some(buffer_config) = &self.buffer {
-            // Some(buffer_config.build()?)
-            None
-        } else {
-            None
-        };
 
-        Ok(Stream::new(input, pipeline, output, buffer, thread_num))
+
+        Ok(Stream::new(input, pipeline, output, thread_num))
     }
 }

@@ -2,7 +2,6 @@
 //!
 //! 使用DataFusion执行SQL查询处理数据，支持静态SQL和流式SQL
 
-use arrow_json;
 use async_trait::async_trait;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
@@ -38,19 +37,6 @@ impl SqlProcessor {
         Ok(Self {
             config: config.clone(),
         })
-    }
-
-    /// 将消息内容解析为DataFusion表
-    async fn parse_input(&self, message: MessageBatch) -> Result<RecordBatch, Error> {
-        let x = match message.content {
-            Content::Arrow(v) => {
-                v.clone()
-            }
-            Content::Binary(_) => {
-                return Err(Error::Processing("不支持的输入格式".to_string()))?;
-            }
-        };
-        Ok(x)
     }
 
 

@@ -32,7 +32,7 @@ pub struct ProtobufProcessorConfig {
 
 /// Protobuf格式转换处理器
 pub struct ProtobufProcessor {
-    config: ProtobufProcessorConfig,
+    _config: ProtobufProcessorConfig,
     descriptor: MessageDescriptor,
 }
 
@@ -50,7 +50,7 @@ impl ProtobufProcessor {
             .ok_or_else(|| Error::Config(format!("找不到消息类型: {}", config.message_type)))?;
 
         Ok(Self {
-            config: config.clone(),
+            _config: config.clone(),
             descriptor: message_descriptor,
         })
     }

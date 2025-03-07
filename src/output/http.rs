@@ -48,7 +48,7 @@ impl HttpOutput {
 impl Output for HttpOutput {
     async fn connect(&self) -> Result<(), Error> {
         // 创建HTTP客户端
-        let mut client_builder = Client::builder()
+        let client_builder = Client::builder()
             .timeout(std::time::Duration::from_millis(self.config.timeout_ms));
         let client_arc = self.client.clone();
         client_arc.lock().await.replace(client_builder.build().map_err(|e| {

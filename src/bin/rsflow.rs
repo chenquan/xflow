@@ -10,7 +10,6 @@ use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use rsflow::config::EngineConfig;
-use rsflow::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

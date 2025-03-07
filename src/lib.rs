@@ -2,11 +2,8 @@
 
 use datafusion::arrow::record_batch::RecordBatch;
 use serde::{Deserialize, Serialize};
-use std::any::Any;
-use std::ops::Deref;
 use thiserror::Error;
 
-pub mod buffer;
 pub mod config;
 pub mod input;
 pub mod output;
@@ -115,7 +112,7 @@ impl MessageBatch {
     /// 将消息内容解析为字符串
     pub fn as_string(&self) -> Result<Vec<String>, Error> {
         match &self.content {
-            Content::Arrow(v) => {
+            Content::Arrow(_) => {
                 Err(Error::Processing("无法解析为JSON".to_string()))
             }
             Content::Binary(v) => {
