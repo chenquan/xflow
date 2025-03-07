@@ -2,13 +2,6 @@
 //!
 //! 在Redis中提供临时消息存储，支持分布式缓冲
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
-
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-
-use crate::{Error, MessageBatch, buffer::Buffer};
 //
 // /// Redis缓冲区配置
 // #[derive(Debug, Clone, Serialize, Deserialize)]

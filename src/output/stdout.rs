@@ -3,7 +3,6 @@
 //! 将处理后的数据输出到标准输出
 
 use std::io::{self, Write};
-use std::sync::atomic::AtomicBool;
 use std::sync::Mutex;
 
 use async_trait::async_trait;
@@ -11,7 +10,7 @@ use datafusion::arrow;
 use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, MessageBatch, output::Output, Content, Bytes};
+use crate::{output::Output, Bytes, Content, Error, MessageBatch};
 
 /// 标准输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

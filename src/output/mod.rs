@@ -2,10 +2,9 @@
 //!
 //! 输出组件负责将处理后的数据发送到目标系统。
 
-use std::sync::Arc;
 use async_trait::async_trait;
-use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{Error, MessageBatch};
 

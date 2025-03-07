@@ -2,14 +2,14 @@
 //!
 //! 将处理后的数据发送到MQTT代理
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::{output::Output, Error, MessageBatch};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
+use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use tracing::info;
-use crate::{Error, MessageBatch, output::Output};
 
 /// MQTT输出配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

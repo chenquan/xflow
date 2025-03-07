@@ -2,10 +2,9 @@
 //!
 //! 处理器组件负责对数据进行转换、过滤、丰富等操作。
 
-use std::sync::Arc;
 use async_trait::async_trait;
-use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{Error, MessageBatch};
 
@@ -29,7 +28,7 @@ pub trait Processor: Send + Sync {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ProcessorConfig {
-    // Batch(batch::BatchProcessorConfig),
+    Batch(batch::BatchProcessorConfig),
     Sql(sql::SqlProcessorConfig),
     Json,
     Protobuf(protobuf::ProtobufProcessorConfig),
@@ -39,7 +38,7 @@ impl ProcessorConfig {
     /// 根据配置构建处理器组件
     pub fn build(&self) -> Result<Arc<dyn Processor>, Error> {
         match self {
-            // ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
+            ProcessorConfig::Batch(config) => Ok(Arc::new(batch::BatchProcessor::new(config)?)),
             ProcessorConfig::Sql(config) => Ok(Arc::new(sql::SqlProcessor::new(config)?)),
             ProcessorConfig::Json => Ok(Arc::new(json::JsonProcessor::new()?)),
             ProcessorConfig::Protobuf(config) => Ok(Arc::new(protobuf::ProtobufProcessor::new(config)?)),

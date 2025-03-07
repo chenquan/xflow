@@ -2,10 +2,9 @@
 //!
 //! 输入组件负责从各种源（如消息队列、文件系统、HTTP端点等）接收数据。
 
-use std::sync::Arc;
 use async_trait::async_trait;
-use datafusion::arrow::array::RecordBatch;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 use crate::{Error, MessageBatch};
 

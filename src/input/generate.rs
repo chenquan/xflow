@@ -1,13 +1,10 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
-use std::time::Duration;
-use async_trait::async_trait;
-use datafusion::arrow::array::{ArrayRef, RecordBatch, StringArray};
-use datafusion::arrow::datatypes::{DataType, Field, Schema};
-use datafusion::functions::strings::StringArrayBuilder;
-use serde::{Deserialize, Deserializer, Serialize};
-use crate::{Error, MessageBatch};
 use crate::input::{Ack, Input, NoopAck};
+use crate::{Error, MessageBatch};
+use async_trait::async_trait;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateConfig {

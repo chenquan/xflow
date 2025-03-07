@@ -2,7 +2,6 @@
 //!
 //! 缓冲区组件在处理过程中提供临时存储，增强系统的弹性和性能。
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

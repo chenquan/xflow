@@ -12,8 +12,8 @@ use tokio::sync::Mutex;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, MessageBatch, input::Input};
 use crate::input::{Ack, NoopAck};
+use crate::{input::Input, Error, MessageBatch};
 
 /// 文件输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

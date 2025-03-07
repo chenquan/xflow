@@ -4,8 +4,6 @@
 
 use arrow_json;
 use async_trait::async_trait;
-use datafusion::arrow;
-use datafusion::arrow::array::ArrayRef;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::prelude::*;
@@ -13,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 
-use crate::{ Content, Error, MessageBatch};
 use crate::processor::Processor;
+use crate::{Content, Error, MessageBatch};
 
 const DEFAULT_TABLE_NAME: &str = "flow";
 /// SQL处理器配置
