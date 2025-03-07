@@ -1,0 +1,32 @@
+# Kafka输入示例配置
+
+
+# MQTT示例配置
+logging:
+  level: debug
+streams:
+  - input:
+      type: kafka
+      brokers:
+        - localhost:9092
+      topics:
+        - test-topic
+      consumer_group: test-group
+      client_id: rsflow
+      start_from_latest: true
+
+    pipeline:
+      thread_num: 4
+      processors:
+        - type: json
+        - type: sql
+          query: "SELECT * FROM flow"
+        - type: json
+
+    output:
+      type: kafka
+      brokers:
+        - localhost:9092
+      topic: test-topic-copy
+      client_id: rsflow-copy
+      key: xxx
