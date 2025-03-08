@@ -5,7 +5,7 @@ streams:
   - input:
       type: "generate"
       context: '{ "timestamp": 1625000000000, "value": 10, "sensor": "temp_1" }'
-      interval: 1s
+      interval: 1ms
       batch_size: 10000
 
 
