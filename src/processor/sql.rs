@@ -52,8 +52,12 @@ impl SqlProcessor {
             .map_err(|e| Error::Processing(format!("注册表失败: {}", e)))?;
 
         // 执行SQL查询并收集结果
+        let sql_options = SQLOptions::new()
+            .with_allow_ddl(false)
+            .with_allow_dml(false)
+            .with_allow_statements(false);
         let df = ctx
-            .sql(&self.config.query)
+            .sql_with_options(&self.config.query, sql_options)
             .await
             .map_err(|e| Error::Processing(format!("SQL查询错误: {}", e)))?;
 
