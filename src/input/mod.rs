@@ -41,7 +41,7 @@ impl Ack for NoopAck {
 
 /// 输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum InputConfig {
     File(file::FileInputConfig),
     Http(http::HttpInputConfig),

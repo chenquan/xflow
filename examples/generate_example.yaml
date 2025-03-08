@@ -16,11 +16,12 @@ streams:
 #          count: 3
 #          timeout_ms: 10000
 #          data_type: "binary"
-        - type: "json"
+        - type: "json_to_arrow"
+
         - type: "sql"
           # SQL查询语句，支持标准SQL语法
           query: "SELECT count(*) FROM flow WHERE value >= 10 group by sensor"
-        - type: "json"
+        - type: "arrow_to_json"
 
 
     output:
