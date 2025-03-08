@@ -14,6 +14,7 @@ pub mod http;
 pub mod kafka;
 pub mod memory;
 pub mod mqtt;
+mod sql;
 
 #[async_trait]
 pub trait Ack: Send + Sync {
@@ -49,6 +50,7 @@ pub enum InputConfig {
     Generate(generate::GenerateConfig),
     Memory(memory::MemoryInputConfig),
     Mqtt(mqtt::MqttInputConfig),
+    Sql(sql::SqlConfig),
 }
 
 impl InputConfig {
@@ -63,6 +65,7 @@ impl InputConfig {
             InputConfig::Generate(config) => {
                 Ok(Arc::new(generate::GenerateInput::new(config.clone())?))
             }
+            InputConfig::Sql(config) => Ok(Arc::new(sql::SqlInput::new(config)?)),
         }
     }
 }

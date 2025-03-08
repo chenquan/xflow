@@ -24,6 +24,9 @@ pub enum Error {
     #[error("配置错误: {0}")]
     Config(String),
 
+    #[error("读取错误: {0}")]
+    Reading(String),
+
     #[error("处理错误: {0}")]
     Processing(String),
 

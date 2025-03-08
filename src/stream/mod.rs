@@ -126,6 +126,10 @@ impl Stream {
                                     }
                                 };
                             },
+                            Error::Config(e) => {
+                                error!("{}", e);
+                                return;
+                            }
                             _ => {
                                 error!("{}", e);
                                 // 发生错误时，关闭发送端以通知所有工作线程
@@ -174,6 +178,7 @@ impl Stream {
                             }
                         }
                         Err(_) => {
+                            return Ok(());
                         }
                     }
                 }
