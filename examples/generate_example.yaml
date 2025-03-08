@@ -1,6 +1,6 @@
 # generate示例配置
 logging:
-  level: error
+  level: info
 streams:
   - input:
       type: "generate"
