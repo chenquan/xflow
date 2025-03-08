@@ -130,11 +130,19 @@ impl Stream {
         worker: Worker,
     ) {
         // 设置信号处理器
-        // let mut sigint = signal(SignalKind::interrupt())?;
-        // let mut sigterm = signal(SignalKind::terminate())?;
+        let mut sigint = signal(SignalKind::interrupt()).expect("Failed to set signal handler");
+        let mut sigterm = signal(SignalKind::terminate()).expect("Failed to set signal handler");
 
         loop {
             tokio::select! {
+                _ = sigint.recv() => {
+                    info!("Received SIGINT, exiting...");
+                    return;
+                },
+                _ = sigterm.recv() => {
+                    info!("Received SIGTERM, exiting...");
+                    return;
+                },
                 result = input.read() =>{
                     match result {
                     Ok(msg) => {
@@ -148,7 +156,6 @@ impl Stream {
                         match e {
                             Error::Done => {
                                 // 输入完成时，关闭发送端以通知所有工作线程
-                                drop(input_sender);
                                 return;
                             }
                             Error::Disconnection => loop {
@@ -170,8 +177,6 @@ impl Stream {
                             }
                             _ => {
                                 error!("{}", e);
-                                // 发生错误时，关闭发送端以通知所有工作线程
-                                continue;
                             }
                         };
                     }
@@ -179,6 +184,7 @@ impl Stream {
                 }
             };
         }
+        error!("input stopped");
     }
 }
 
