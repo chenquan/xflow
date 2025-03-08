@@ -1,0 +1,27 @@
+# generate示例配置
+logging:
+  level: info
+streams:
+  - input:
+      type: "sql"
+      create_source_sql: |
+        CREATE EXTERNAL TABLE source
+        STORED AS CSV
+        LOCATION './examples/input_data.csv'
+        OPTIONS ('has_header' 'true');
+      select_sql: |
+        select * from source;
+    
+    
+
+    pipeline:
+      thread_num: 4
+      processors:
+        - type: "sql"
+          # SQL查询语句，支持标准SQL语法
+          query: "SELECT * FROM flow"
+        - type: "arrow_to_json"
+
+
+    output:
+      type: "stdout"

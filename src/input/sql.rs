@@ -5,21 +5,25 @@ use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::prelude::{SQLOptions, SessionContext};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqlConfig {
-    sql: String,
+    select_sql: String,
+    create_source_sql: String,
 }
 
 pub struct SqlInput {
     sql_config: SqlConfig,
+    read: AtomicBool,
 }
 
 impl SqlInput {
     pub fn new(sql_config: &SqlConfig) -> Result<Self, Error> {
         Ok(Self {
             sql_config: sql_config.clone(),
+            read: AtomicBool::new(false),
         })
     }
 }
@@ -31,17 +35,28 @@ impl Input for SqlInput {
     }
 
     async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
-        let sql = &self.sql_config.sql;
+        if self.read.load(Ordering::Acquire) {
+            return Err(Error::Done);
+        }
+
         let ctx = SessionContext::new();
 
         let sql_options = SQLOptions::new()
-            .with_allow_ddl(false)
-            .with_allow_dml(true)
-            .with_allow_statements(true);
-        let df = ctx
-            .sql_with_options(sql, sql_options)
+            .with_allow_ddl(true)
+            .with_allow_dml(false)
+            .with_allow_statements(false);
+        ctx.sql_with_options(&self.sql_config.create_source_sql, sql_options)
             .await
             .map_err(|e| Error::Config(format!("Failed to execute SQL query: {}", e)))?;
+
+        let sql_options = SQLOptions::new()
+            .with_allow_ddl(false)
+            .with_allow_dml(false)
+            .with_allow_statements(false);
+        let df = ctx
+            .sql_with_options(&self.sql_config.select_sql, sql_options)
+            .await
+            .map_err(|e| Error::Reading(format!("Failed to execute SQL query: {}", e)))?;
 
         let result_batches = df
             .collect()
@@ -53,7 +68,7 @@ impl Input for SqlInput {
         } else {
             result_batches[0].clone()
         };
-
+        self.read.store(true, Ordering::Release);
         Ok((MessageBatch::new_arrow(x), Arc::new(NoopAck)))
     }
 

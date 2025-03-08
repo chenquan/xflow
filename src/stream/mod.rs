@@ -174,6 +174,7 @@ impl Stream {
                             }
                         }
                         Err(_) => {
+                            return Ok(());
                         }
                     }
                 }
