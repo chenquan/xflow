@@ -121,6 +121,11 @@ impl Stream {
         }
 
         wg.wait();
+
+        info!("Closing......");
+        self.input.close().await?;
+        info!("close.");
+
         Ok(())
     }
 

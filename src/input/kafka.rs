@@ -32,17 +32,14 @@ pub struct KafkaInputConfig {
 pub struct KafkaInput {
     config: KafkaInputConfig,
     consumer: Arc<RwLock<Option<StreamConsumer>>>,
-    close_tx: broadcast::Sender<()>,
 }
 
 impl KafkaInput {
     /// 创建一个新的Kafka输入组件
     pub fn new(config: &KafkaInputConfig) -> Result<Self, Error> {
-        let (close_tx, _) = broadcast::channel(1);
         Ok(Self {
             config: config.clone(),
             consumer: Arc::new(RwLock::new(None)),
-            close_tx,
         })
     }
 }
@@ -102,46 +99,36 @@ impl Input for KafkaInput {
         }
         let consumer = consumer_guard.as_ref().unwrap();
 
-        let mut rx = self.close_tx.subscribe();
+        match consumer.recv().await {
+            Ok(kafka_message) => {
+                // 从Kafka消息创建内部消息
+                let payload = kafka_message
+                    .payload()
+                    .ok_or_else(|| Error::Processing("Kafka消息没有内容".to_string()))?;
 
-        tokio::select! {
-            result = consumer.recv() => match result {
-                Ok(kafka_message) => {
-                    // 从Kafka消息创建内部消息
-                    let payload = kafka_message.payload()
-                        .ok_or_else(|| Error::Processing("Kafka消息没有内容".to_string()))?;
+                let mut binary_data = Vec::new();
+                binary_data.push(payload.to_vec());
+                let msg_batch = MessageBatch::new_binary(binary_data);
 
-                    let mut binary_data = Vec::new();
-                    binary_data.push(payload.to_vec());
-                    let msg_batch = MessageBatch::new_binary(binary_data);
+                // 创建确认对象
+                let topic = kafka_message.topic().to_string();
+                let partition = kafka_message.partition();
+                let offset = kafka_message.offset();
 
-                    // 创建确认对象
-                    let topic = kafka_message.topic().to_string();
-                    let partition = kafka_message.partition();
-                    let offset = kafka_message.offset();
+                let ack = KafkaAck {
+                    consumer: self.consumer.clone(),
+                    topic,
+                    partition,
+                    offset,
+                };
 
-                    let ack = KafkaAck {
-                        consumer: self.consumer.clone(),
-                        topic,
-                        partition,
-                        offset,
-                    };
-
-                    Ok((msg_batch, Arc::new(ack)))
-                }
-                Err(e) => {
-                    Err(Error::Connection(format!("Kafka消息接收错误: {}", e)))
-                }
-            },
-            _ =  rx.recv() => {
-                Err(Error::Done)
+                Ok((msg_batch, Arc::new(ack)))
             }
+            Err(e) => Err(Error::Connection(format!("Kafka消息接收错误: {}", e))),
         }
     }
 
     async fn close(&self) -> Result<(), Error> {
-        let _ = self.close_tx.send(());
-
         // 安全地清理消费者资源
         let mut consumer_guard = self.consumer.write().await;
         if let Some(consumer) = consumer_guard.take() {
