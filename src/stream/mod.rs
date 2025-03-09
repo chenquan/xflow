@@ -48,7 +48,8 @@ impl Stream {
         let wg = WaitGroup::new();
         // 输入
         let worker = wg.worker();
-        tokio::spawn(Self::do_input(input, input_sender, worker));
+        let output_arc = self.output.clone();
+        tokio::spawn(Self::do_input(input, input_sender, worker, output_arc));
 
         for i in 0..self.thread_num {
             let pipeline = self.pipeline.clone();
@@ -133,6 +134,7 @@ impl Stream {
         input: Arc<dyn Input>,
         input_sender: Sender<(MessageBatch, Arc<dyn Ack>)>,
         worker: Worker,
+        output_arc: Arc<dyn Output>,
     ) {
         // 设置信号处理器
         let mut sigint = signal(SignalKind::interrupt()).expect("Failed to set signal handler");
@@ -164,17 +166,16 @@ impl Stream {
                                 return;
                             }
                             Error::Disconnection => loop {
-                                // TODO 重连
-                                // match output_arc.connect().await {
-                                //     Ok(_) => {
-                                //         info!("input reconnected");
-                                //         break;
-                                //     }
-                                //     Err(e) => {
-                                //         error!("{}", e);
-                                //         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                                //     }
-                                // };
+                                match output_arc.connect().await {
+                                    Ok(_) => {
+                                        info!("input reconnected");
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        error!("{}", e);
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                    }
+                                };
                             },
                             Error::Config(e) => {
                                 error!("{}", e);
