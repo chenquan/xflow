@@ -2,15 +2,15 @@
 //!
 //! 使用DataFusion执行SQL查询处理数据，支持静态SQL和流式SQL
 
+use crate::processor::Processor;
+use crate::{Content, Error, MessageBatch};
 use async_trait::async_trait;
+use datafusion::arrow;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-use crate::processor::Processor;
-use crate::{Content, Error, MessageBatch};
 
 const DEFAULT_TABLE_NAME: &str = "flow";
 /// SQL处理器配置
@@ -70,7 +70,14 @@ impl SqlProcessor {
             return Ok(RecordBatch::new_empty(Arc::new(Schema::empty())));
         }
 
-        Ok(result_batches[0].clone())
+        if result_batches.len() == 1 {
+            return Ok(result_batches[0].clone());
+        }
+
+        Ok(
+            arrow::compute::concat_batches(&&result_batches[0].schema(), &result_batches)
+                .map_err(|e| Error::Processing(format!("合并批次失败: {}", e)))?,
+        )
     }
 }
 
