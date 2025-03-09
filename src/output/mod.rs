@@ -13,7 +13,7 @@ pub mod file;
 pub mod http;
 pub mod kafka;
 pub mod mqtt;
-pub mod redis;
+
 pub mod stdout;
 
 /// 输出组件的特征接口
