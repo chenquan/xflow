@@ -1,4 +1,4 @@
-# generate示例配置
+# proto 示例配置
 logging:
   level: trace
 streams:
