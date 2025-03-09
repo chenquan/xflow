@@ -11,6 +11,7 @@ pub struct MemoryBuffer {
     config: MemoryBufferConfig,
     queue: Arc<Mutex<VecDeque<MessageBatch>>>,
 }
+
 impl MemoryBuffer {
     pub fn new(config: &MemoryBufferConfig) -> Result<Self, Error> {
         Ok(Self {
@@ -19,6 +20,7 @@ impl MemoryBuffer {
         })
     }
 }
+
 #[async_trait]
 impl Buffer for MemoryBuffer {
     async fn push(&self, msg: &MessageBatch) -> Result<(), Error> {
