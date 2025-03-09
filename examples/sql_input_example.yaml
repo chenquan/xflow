@@ -1,4 +1,4 @@
-# generate示例配置
+# sql 示例配置
 logging:
   level: info
 streams:

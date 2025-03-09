@@ -1,7 +1,5 @@
 # Kafka输入示例配置
 
-
-# MQTT示例配置
 logging:
   level: debug
 streams:
