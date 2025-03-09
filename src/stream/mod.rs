@@ -4,10 +4,11 @@
 
 use crate::input::Ack;
 use crate::{input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
+use flume::Sender;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, error, info};
-use waitgroup::WaitGroup;
+use waitgroup::{WaitGroup, Worker};
 
 /// 流结构体，包含输入、管道、输出和可选的缓冲区
 pub struct Stream {
@@ -39,16 +40,16 @@ impl Stream {
         self.input.connect().await?;
         self.output.connect().await?;
 
-        // 设置信号处理器
-        let mut sigint = signal(SignalKind::interrupt())?;
-        let mut sigterm = signal(SignalKind::terminate())?;
-
         let (input_sender, input_receiver) = flume::bounded::<(MessageBatch, Arc<dyn Ack>)>(1000);
         let (output_sender, output_receiver) =
             flume::bounded::<(Vec<MessageBatch>, Arc<dyn Ack>)>(1000);
         let input = Arc::clone(&self.input);
 
         let wg = WaitGroup::new();
+        // 输入
+        let worker = wg.worker();
+        let output_arc = self.output.clone();
+        tokio::spawn(Self::do_input(input, input_sender, worker, output_arc));
 
         for i in 0..self.thread_num {
             let pipeline = self.pipeline.clone();
@@ -56,6 +57,7 @@ impl Stream {
             let output_sender = output_sender.clone();
             let worker = wg.worker();
             tokio::spawn(async move {
+                let _worker = worker;
                 let i = i + 1;
                 info!("Worker {} started", i);
                 loop {
@@ -83,35 +85,84 @@ impl Stream {
                             }
                         }
                         Err(_e) => {
-                            return;
+                            break;
                         }
                     }
                 }
-                drop(output_sender);
                 info!("Worker {} stopped", i);
-                drop(worker);
             });
         }
 
-        let worker = wg.worker();
+        drop(output_sender);
+        loop {
+            match output_receiver.recv_async().await {
+                Ok(msg) => {
+                    let size = &msg.0.len();
+                    let mut success_cnt = 0;
+                    for x in &msg.0 {
+                        match self.output.write(x).await {
+                            Ok(_) => {
+                                success_cnt = success_cnt + 1;
+                            }
+                            Err(e) => {
+                                error!("{}", e);
+                            }
+                        }
+                    }
 
-        let output_arc = self.output.clone();
+                    // 确认消息已成功处理
+                    if size == &success_cnt {
+                        msg.1.ack().await;
+                    }
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
 
-        tokio::spawn(async move {
-            loop {
-                match input.read().await {
+        wg.wait();
+
+        info!("Closing......");
+        self.close().await?;
+        info!("close.");
+
+        Ok(())
+    }
+
+    async fn do_input(
+        input: Arc<dyn Input>,
+        input_sender: Sender<(MessageBatch, Arc<dyn Ack>)>,
+        worker: Worker,
+        output_arc: Arc<dyn Output>,
+    ) {
+        // 设置信号处理器
+        let mut sigint = signal(SignalKind::interrupt()).expect("Failed to set signal handler");
+        let mut sigterm = signal(SignalKind::terminate()).expect("Failed to set signal handler");
+
+        loop {
+            tokio::select! {
+                _ = sigint.recv() => {
+                    info!("Received SIGINT, exiting...");
+                    return;
+                },
+                _ = sigterm.recv() => {
+                    info!("Received SIGTERM, exiting...");
+                    return;
+                },
+                result = input.read() =>{
+                    match result {
                     Ok(msg) => {
                         debug!("Received input message: {:?}", &msg.0.as_string());
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
-                            break;
+                            return;
                         }
                     }
                     Err(e) => {
                         match e {
                             Error::Done => {
                                 // 输入完成时，关闭发送端以通知所有工作线程
-                                drop(input_sender);
                                 return;
                             }
                             Error::Disconnection => loop {
@@ -132,64 +183,16 @@ impl Stream {
                             }
                             _ => {
                                 error!("{}", e);
-                                // 发生错误时，关闭发送端以通知所有工作线程
-                                continue;
                             }
                         };
                     }
-                };
-            }
-            drop(worker)
-        });
-
-        drop(output_sender);
-        loop {
-            tokio::select! {
-                // 监听中断信号
-                _ = sigint.recv() => {
-                    info!("Received SIGINT signal, initiating graceful shutdown");
-                    self.close().await?;
-                    break;
+                    };
                 }
-                _ = sigterm.recv() => {
-                    info!("Received SIGTERM signal, initiating graceful shutdown");
-                    self.close().await?;
-                     break;
-                }
-                msg = output_receiver.recv_async() => {
-                    match msg {
-                        Ok(msg) => {
-                            let size = &msg.0.len();
-                            let mut success_cnt = 0;
-                            for x in &msg.0 {
-                                match self.output.write(x).await {
-                                    Ok(_) => {
-                                        success_cnt = success_cnt + 1;
-                                    }
-                                    Err(e) => {
-                                        error!("{}", e);
-                                    }
-                                }
-                            }
-
-                            // 确认消息已成功处理
-                            if size == &success_cnt {
-                                msg.1.ack().await;
-                            }
-                        }
-                        Err(_) => {
-                            return Ok(());
-                        }
-                    }
-                }
-            }
+            };
         }
-
-        wg.wait();
-        Ok(())
+        error!("input stopped");
     }
 
-    /// 关闭流中的所有组件
     pub async fn close(&mut self) -> Result<(), Error> {
         // 关闭顺序：输入 -> 管道 -> 缓冲区 -> 输出
         self.input.close().await?;
