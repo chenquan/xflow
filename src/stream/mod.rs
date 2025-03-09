@@ -2,6 +2,7 @@
 //!
 //! 流是完整的数据处理单元，包含输入、管道和输出。
 
+use crate::buffer::Buffer;
 use crate::input::Ack;
 use crate::{input::Input, output::Output, pipeline::Pipeline, Error, MessageBatch};
 use flume::Sender;
@@ -15,6 +16,7 @@ pub struct Stream {
     input: Arc<dyn Input>,
     pipeline: Arc<Pipeline>,
     output: Arc<dyn Output>,
+    buffer: Option<Arc<dyn Buffer>>,
     thread_num: i32,
 }
 
@@ -24,12 +26,14 @@ impl Stream {
         input: Arc<dyn Input>,
         pipeline: Pipeline,
         output: Arc<dyn Output>,
+        buffer: Option<Arc<dyn Buffer>>,
         thread_num: i32,
     ) -> Self {
         Self {
             input,
             pipeline: Arc::new(pipeline),
             output,
+            buffer,
             thread_num,
         }
     }
@@ -208,6 +212,7 @@ pub struct StreamConfig {
     pub input: crate::input::InputConfig,
     pub pipeline: crate::pipeline::PipelineConfig,
     pub output: crate::output::OutputConfig,
+    pub buffer: Option<crate::buffer::BufferConfig>,
 }
 
 impl StreamConfig {
@@ -216,7 +221,13 @@ impl StreamConfig {
         let input = self.input.build()?;
         let (pipeline, thread_num) = self.pipeline.build()?;
         let output = self.output.build()?;
+        let buffer = if let Some(buffer_config) = &self.buffer {
+            let arc = buffer_config.build()?;
+            Some(arc)
+        } else {
+            None
+        };
 
-        Ok(Stream::new(input, pipeline, output, thread_num))
+        Ok(Stream::new(input, pipeline, output, buffer, thread_num))
     }
 }
