@@ -124,7 +124,7 @@ impl Stream {
         wg.wait();
 
         info!("Closing......");
-        self.input.close().await?;
+        self.close().await?;
         info!("close.");
 
         Ok(())
@@ -191,6 +191,14 @@ impl Stream {
             };
         }
         error!("input stopped");
+    }
+
+    pub async fn close(&mut self) -> Result<(), Error> {
+        // 关闭顺序：输入 -> 管道 -> 缓冲区 -> 输出
+        self.input.close().await?;
+        self.pipeline.close().await?;
+        self.output.close().await?;
+        Ok(())
     }
 }
 
