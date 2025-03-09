@@ -1,6 +1,7 @@
 use crate::input::{Ack, Input, NoopAck};
 use crate::{Error, MessageBatch};
 use async_trait::async_trait;
+use datafusion::arrow;
 use datafusion::arrow::array::RecordBatch;
 use datafusion::arrow::datatypes::Schema;
 use datafusion::prelude::{SQLOptions, SessionContext};
@@ -66,7 +67,12 @@ impl Input for SqlInput {
         let x = if result_batches.is_empty() {
             RecordBatch::new_empty(Arc::new(Schema::empty()))
         } else {
-            result_batches[0].clone()
+            if result_batches.len() == 1 {
+                result_batches[0].clone()
+            } else {
+                arrow::compute::concat_batches(&&result_batches[0].schema(), &result_batches)
+                    .map_err(|e| Error::Processing(format!("合并批次失败: {}", e)))?
+            }
         };
         self.read.store(true, Ordering::Release);
         Ok((MessageBatch::new_arrow(x), Arc::new(NoopAck)))

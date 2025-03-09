@@ -9,7 +9,6 @@ streams:
         STORED AS CSV
         LOCATION './examples/input_data.csv'
         OPTIONS ('has_header' 'true');
-        select * from source;
       select_sql: |
         select * from source;
     
