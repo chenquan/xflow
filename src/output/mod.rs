@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::{Error, MessageBatch};
 
+mod drop;
 pub mod file;
 pub mod http;
 pub mod kafka;
@@ -38,6 +39,7 @@ pub enum OutputConfig {
     Mqtt(mqtt::MqttOutputConfig),
     // Redis(redis::RedisOutputConfig),
     Stdout(stdout::StdoutOutputConfig),
+    Drop,
 }
 
 impl OutputConfig {
@@ -50,6 +52,7 @@ impl OutputConfig {
             OutputConfig::Mqtt(config) => Ok(Arc::new(mqtt::MqttOutput::new(config)?)),
             // OutputConfig::Redis(config) => Ok(Arc::new(redis::RedisOutput::new(config)?)),
             OutputConfig::Stdout(config) => Ok(Arc::new(stdout::StdoutOutput::new(config)?)),
+            OutputConfig::Drop => Ok(Arc::new(drop::DropOutput)),
         }
     }
 }
