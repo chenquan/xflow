@@ -5,7 +5,6 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::broadcast;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GenerateConfig {
@@ -20,18 +19,15 @@ pub struct GenerateInput {
     config: GenerateConfig,
     count: AtomicI64,
     batch_size: usize,
-    close_tx: broadcast::Sender<()>,
 }
 impl GenerateInput {
     pub fn new(config: GenerateConfig) -> Result<Self, Error> {
         let batch_size = config.batch_size.unwrap_or(1);
-        let (close_tx, _) = broadcast::channel(1);
 
         Ok(Self {
             config,
             count: AtomicI64::new(0),
             batch_size,
-            close_tx,
         })
     }
 }
@@ -43,8 +39,6 @@ impl Input for GenerateInput {
     }
 
     async fn read(&self) -> Result<(MessageBatch, Arc<dyn Ack>), Error> {
-        let close_rx = self.close_tx.subscribe();
-
         tokio::time::sleep(self.config.interval).await;
 
         if let Some(count) = self.config.count {

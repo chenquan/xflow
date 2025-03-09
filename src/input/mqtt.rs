@@ -6,12 +6,11 @@ use crate::input::Ack;
 use crate::{input::Input, Error, MessageBatch};
 use async_trait::async_trait;
 use flume::{Receiver, Sender};
-use rumqttc::{AsyncClient, ConnectionError, Event, MqttOptions, Packet, Publish, QoS};
+use rumqttc::{AsyncClient, Event, MqttOptions, Packet, Publish, QoS};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
-use tracing::{error, info};
+use tracing::error;
 
 /// MQTT输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

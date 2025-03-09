@@ -133,7 +133,7 @@ impl Stream {
     async fn do_input(
         input: Arc<dyn Input>,
         input_sender: Sender<(MessageBatch, Arc<dyn Ack>)>,
-        worker: Worker,
+        _worker: Worker,
         output_arc: Arc<dyn Output>,
     ) {
         // 设置信号处理器
@@ -144,11 +144,11 @@ impl Stream {
             tokio::select! {
                 _ = sigint.recv() => {
                     info!("Received SIGINT, exiting...");
-                    return;
+                    break;
                 },
                 _ = sigterm.recv() => {
                     info!("Received SIGTERM, exiting...");
-                    return;
+                    break;
                 },
                 result = input.read() =>{
                     match result {
@@ -156,7 +156,7 @@ impl Stream {
                         debug!("Received input message: {:?}", &msg.0.as_string());
                         if let Err(e) = input_sender.send_async(msg).await {
                             error!("Failed to send input message: {}", e);
-                            return;
+                            break;
                         }
                     }
                     Err(e) => {
@@ -179,7 +179,7 @@ impl Stream {
                             },
                             Error::Config(e) => {
                                 error!("{}", e);
-                                return;
+                                break;
                             }
                             _ => {
                                 error!("{}", e);
@@ -190,7 +190,7 @@ impl Stream {
                 }
             };
         }
-        error!("input stopped");
+        info!("input stopped");
     }
 
     pub async fn close(&mut self) -> Result<(), Error> {

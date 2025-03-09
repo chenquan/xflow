@@ -58,7 +58,7 @@ impl Processor for ArrowToJsonProcessor {
                 let json_data = arrow_to_json(&v)?;
                 Ok(vec![MessageBatch::new_binary(vec![json_data])])
             }
-            Content::Binary(v) => Err(Error::Processing("输入必须是Arrow格式".to_string())),
+            Content::Binary(_) => Err(Error::Processing("输入必须是Arrow格式".to_string())),
         }
     }
 

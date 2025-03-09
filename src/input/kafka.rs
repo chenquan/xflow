@@ -10,8 +10,7 @@ use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message as KafkaMessage;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::broadcast::error::RecvError;
-use tokio::sync::{broadcast, oneshot, Mutex, RwLock};
+use tokio::sync::RwLock;
 
 /// Kafka输入配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
