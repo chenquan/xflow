@@ -11,6 +11,7 @@ pub struct MemoryBuffer {
     config: MemoryBufferConfig,
     queue: Arc<Mutex<VecDeque<MessageBatch>>>,
 }
+
 impl MemoryBuffer {
     pub fn new(config: &MemoryBufferConfig) -> Result<Self, Error> {
         Ok(Self {
@@ -19,17 +20,24 @@ impl MemoryBuffer {
         })
     }
 }
+
 #[async_trait]
 impl Buffer for MemoryBuffer {
     async fn push(&self, msg: &MessageBatch) -> Result<(), Error> {
-        todo!()
+        let mut queue = self.queue.lock().map_err(|_| Error::Processing("获取缓冲区锁失败".to_string()))?;
+        queue.push_back(msg.clone());
+        Ok(())
     }
 
     async fn pop(&self) -> Result<Option<MessageBatch>, Error> {
-        todo!()
+        let mut queue = self.queue.lock().map_err(|_| Error::Processing("获取缓冲区锁失败".to_string()))?;
+        Ok(queue.pop_front())
     }
 
     async fn close(&self) -> Result<(), Error> {
-        todo!()
+        // 清空队列
+        let mut queue = self.queue.lock().map_err(|_| Error::Processing("获取缓冲区锁失败".to_string()))?;
+        queue.clear();
+        Ok(())
     }
 }
