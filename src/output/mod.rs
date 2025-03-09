@@ -14,6 +14,7 @@ pub mod kafka;
 pub mod mqtt;
 pub mod redis;
 pub mod stdout;
+mod sql;
 
 /// 输出组件的特征接口
 #[async_trait]

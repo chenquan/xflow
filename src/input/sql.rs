@@ -11,7 +11,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SqlConfig {
     select_sql: String,
-    create_source_sql: String,
+    create_table_sql: String,
 }
 
 pub struct SqlInput {
@@ -45,7 +45,7 @@ impl Input for SqlInput {
             .with_allow_ddl(true)
             .with_allow_dml(false)
             .with_allow_statements(false);
-        ctx.sql_with_options(&self.sql_config.create_source_sql, sql_options)
+        ctx.sql_with_options(&self.sql_config.create_table_sql, sql_options)
             .await
             .map_err(|e| Error::Config(format!("Failed to execute SQL query: {}", e)))?;
 
