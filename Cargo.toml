@@ -1,11 +1,11 @@
 [package]
-name = "rsflow"
+name = "arkflow"
 version = "0.1.0"
 edition = "2021"
 description = "High-performance Rust flow processing engine"
 authors = ["chenquan <chenquan.dev@gmail.com>"]
-repository = "https://github.com/chenquan/rsflow"
-homepage = "https://github.com/chenquan/rsflow"
+repository = "https://github.com/chenquan/arkflow"
+homepage = "https://github.com/chenquan/arkflow"
 license = "Apache-2.0"
 
 [dependencies]

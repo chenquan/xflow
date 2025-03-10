@@ -9,7 +9,7 @@ use clap::{Arg, Command};
 use tracing::{error, info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-use rsflow::config::EngineConfig;
+use arkflow::config::EngineConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
