@@ -133,6 +133,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcfed56ad506cb2c684a14971b8861fdc3baaaae314b9e5f9bb532cbe3ba7a4f"
 
 [[package]]
+name = "arkflow"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arrow-json",
+ "async-trait",
+ "aws-msk-iam-sasl-signer",
+ "axum",
+ "clap",
+ "colored",
+ "datafusion",
+ "dyn-clone",
+ "flume",
+ "futures",
+ "humantime",
+ "lazy_static",
+ "prometheus",
+ "prost-reflect",
+ "prost-types",
+ "protobuf 3.7.1",
+ "protobuf-parse",
+ "rdkafka",
+ "rdkafka-sys",
+ "regex",
+ "reqwest",
+ "rumqttc",
+ "sasl2-sys",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.12",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "waitgroup",
+]
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3379,45 +3418,6 @@ dependencies = [
  "libc",
  "untrusted",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rsflow"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arrow-json",
- "async-trait",
- "aws-msk-iam-sasl-signer",
- "axum",
- "clap",
- "colored",
- "datafusion",
- "dyn-clone",
- "flume",
- "futures",
- "humantime",
- "lazy_static",
- "prometheus",
- "prost-reflect",
- "prost-types",
- "protobuf 3.7.1",
- "protobuf-parse",
- "rdkafka",
- "rdkafka-sys",
- "regex",
- "reqwest",
- "rumqttc",
- "sasl2-sys",
- "serde",
- "serde_json",
- "serde_yaml",
- "thiserror 2.0.12",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "waitgroup",
 ]
 
 [[package]]
